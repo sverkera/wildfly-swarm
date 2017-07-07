@@ -21,7 +21,7 @@
 package org.wildfly.swarm.camel.test.jms;
 
 import org.wildfly.swarm.Swarm;
-import org.wildfly.swarm.camel.core.CamelCoreFraction;
+import org.wildfly.swarm.camel.core.CamelFraction;
 import org.wildfly.swarm.config.messaging.activemq.server.JMSQueue;
 import org.wildfly.swarm.messaging.MessagingFraction;
 
@@ -40,9 +40,11 @@ public class Main {
 
     static final String QUEUE_JNDI_NAME = "java:/" + QUEUE_NAME;
 
+    private static Swarm container;
+
     public static void main(String... args) throws Exception {
         System.err.println("RUNNING MAIN!");
-        Swarm container = new Swarm().fraction(new CamelCoreFraction());
+        container = new Swarm().fraction(new CamelFraction());
         container.fraction(MessagingFraction.createDefaultFraction()
                                    .defaultServer((s) -> {
                                        s.jmsQueue(new JMSQueue<>(QUEUE_NAME).entry(QUEUE_JNDI_NAME));
@@ -51,4 +53,7 @@ public class Main {
         container.start().deploy();
     }
 
+    public static void stopMain() throws Exception {
+        container.stop();
+    }
 }

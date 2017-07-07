@@ -24,6 +24,8 @@ import javax.enterprise.inject.Instance;
 import javax.inject.Inject;
 
 import io.undertow.server.HttpHandler;
+import org.jboss.as.naming.service.DefaultNamespaceContextSelectorService;
+import org.jboss.as.naming.service.NamingService;
 import org.jboss.msc.service.ServiceActivator;
 import org.jboss.msc.service.ServiceActivatorContext;
 import org.jboss.msc.service.ServiceBuilder;
@@ -50,10 +52,13 @@ public class TopologyWebAppActivator implements ServiceActivator {
         TopologyProxyService proxyService = new TopologyProxyService(serviceNames);
         ServiceBuilder<TopologyProxyService> serviceBuilder = target
                 .addService(TopologyProxyService.SERVICE_NAME, proxyService)
-                .addDependency(TopologyManagerActivator.CONNECTOR_SERVICE_NAME);
+                .addDependency(DefaultNamespaceContextSelectorService.SERVICE_NAME)
+                .addDependency(TopologyManagerActivator.CONNECTOR_SERVICE_NAME)
+                .addDependency(NamingService.SERVICE_NAME);
+
         for (String serviceName : serviceNames) {
             serviceBuilder.addDependency(proxyService.mscServiceNameForServiceProxy(serviceName),
-                    HttpHandler.class, proxyService.getHandlerInjectorFor(serviceName));
+                                         HttpHandler.class, proxyService.getHandlerInjectorFor(serviceName));
         }
         serviceBuilder.install();
     }

@@ -35,6 +35,7 @@ import org.jboss.modules.filter.PathFilters;
 import org.jboss.modules.maven.ArtifactCoordinates;
 import org.wildfly.swarm.bootstrap.env.ApplicationEnvironment;
 import org.wildfly.swarm.bootstrap.logging.BootstrapLogger;
+import org.wildfly.swarm.bootstrap.util.BootstrapUtil;
 import org.wildfly.swarm.bootstrap.util.TempFileManager;
 
 /**
@@ -58,7 +59,6 @@ public class ApplicationModuleFinder extends AbstractSingleModuleFinder {
     public void buildModule(ModuleSpec.Builder builder, ModuleLoader delegateLoader) throws ModuleLoadException {
 
         ApplicationEnvironment env = ApplicationEnvironment.get();
-
 
         env.bootstrapModules()
                 .forEach((module) -> {
@@ -84,10 +84,8 @@ public class ApplicationModuleFinder extends AbstractSingleModuleFinder {
         addDependencies(builder, env);
 
         builder.addDependency(DependencySpec.createModuleDependencySpec(ModuleIdentifier.create("org.jboss.modules")));
-        builder.addDependency(DependencySpec.createModuleDependencySpec(ModuleIdentifier.create("org.jboss.msc")));
         builder.addDependency(DependencySpec.createModuleDependencySpec(ModuleIdentifier.create("org.jboss.shrinkwrap")));
         builder.addDependency(DependencySpec.createModuleDependencySpec(ModuleIdentifier.create("org.wildfly.swarm.configuration"), false, true));
-        builder.addDependency(DependencySpec.createModuleDependencySpec(ModuleIdentifier.create("javax.api")));
         builder.addDependency(DependencySpec.createModuleDependencySpec(ModuleIdentifier.create("sun.jdk"), false, true));
 
         builder.addDependency(
@@ -124,24 +122,32 @@ public class ApplicationModuleFinder extends AbstractSingleModuleFinder {
             name = name.substring(0, dotLoc);
         }
 
-        File tmp = TempFileManager.INSTANCE.newTempFile(name, ext);
+        File tmp = File.createTempFile(name, ext);
 
         try (InputStream artifactIn = getClass().getClassLoader().getResourceAsStream(path)) {
             Files.copy(artifactIn, tmp.toPath(), StandardCopyOption.REPLACE_EXISTING);
         }
+
         final String jarName = tmp.getName().toString();
         final JarFile jarFile = new JarFile(tmp);
-        final ResourceLoader jarLoader = ResourceLoaders.createJarResourceLoader(jarName,
-                                                                                 jarFile);
+
+        File tmpDir = TempFileManager.INSTANCE.newTempDirectory(name, ext);
+
+        //Explode jar due to some issues in Windows on stopping (JarFiles cannot be deleted)
+        BootstrapUtil.explodeJar(jarFile, tmpDir.getAbsolutePath());
+
+        jarFile.close();
+        tmp.delete();
+
+        final ResourceLoader jarLoader = ResourceLoaders.createFileResourceLoader(jarName, tmpDir);
         builder.addResourceRoot(ResourceLoaderSpec.createResourceLoaderSpec(jarLoader));
 
         if (".war".equalsIgnoreCase(ext)) {
-            final ResourceLoader warLoader = ResourceLoaders.createJarResourceLoader(jarName,
-                                                                                     jarFile,
-                                                                                     "WEB-INF/classes");
+            final ResourceLoader warLoader = ResourceLoaders.createFileResourceLoader(jarName + "WEBINF",
+                    new File(tmpDir.getAbsolutePath() + File.separator + "WEB-INF" + File.separator + "classes"));
+
             builder.addResourceRoot(ResourceLoaderSpec.createResourceLoaderSpec(warLoader));
         }
-
     }
 
     protected void addDependencies(ModuleSpec.Builder builder, ApplicationEnvironment env) {
@@ -173,10 +179,8 @@ public class ApplicationModuleFinder extends AbstractSingleModuleFinder {
                                 )
                         );
                     } catch (IOException e) {
-                        e.printStackTrace();
+                        throw new RuntimeException(e);
                     }
-
-
                 });
     }
 

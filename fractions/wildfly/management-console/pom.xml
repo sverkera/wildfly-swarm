@@ -5,7 +5,7 @@
   <parent>
     <groupId>org.wildfly.swarm</groupId>
     <artifactId>wildfly-swarm</artifactId>
-    <version>2017.4.0-SNAPSHOT</version>
+    <version>2017.8.0-SNAPSHOT</version>
     <relativePath>../../../</relativePath>
   </parent>
 
@@ -16,6 +16,7 @@
   <description>UI to manage a running WildFly/Swarm server</description>
 
   <properties>
+    <swarm.fraction.stability>stable</swarm.fraction.stability>
     <swarm.fraction.tags>Web,Management</swarm.fraction.tags>
   </properties>
 
@@ -26,27 +27,6 @@
         <filtering>true</filtering>
       </resource>
     </resources>
-    <plugins>
-      <plugin>
-        <artifactId>maven-dependency-plugin</artifactId>
-        <executions>
-          <execution>
-            <id>management-ui</id>
-            <phase>prepare-package</phase>
-            <goals>
-              <goal>copy-dependencies</goal>
-            </goals>
-            <configuration>
-              <includeGroupIds>org.jboss.as</includeGroupIds>
-              <includeArtifactIds>jboss-as-console</includeArtifactIds>
-              <includeClassifiers>resources</includeClassifiers>
-              <outputDirectory>${project.build.directory}/classes/modules/org/jboss/as/console/main/</outputDirectory>
-              <stripVersion>true</stripVersion>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-    </plugins>
   </build>
 
   <dependencies>
@@ -56,18 +36,15 @@
     </dependency>
     <dependency>
       <groupId>org.wildfly.swarm</groupId>
+      <artifactId>logging</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.wildfly.swarm</groupId>
       <artifactId>undertow</artifactId>
     </dependency>
     <dependency>
       <groupId>org.wildfly.swarm</groupId>
       <artifactId>spi</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.jboss.as</groupId>
-      <artifactId>jboss-as-console</artifactId>
-      <classifier>resources</classifier>
-      <version>${version.jboss.management-console}</version>
-      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>javax.inject</groupId>
@@ -80,8 +57,8 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>org.wildfly.core</groupId>
-      <artifactId>wildfly-core-feature-pack</artifactId>
+      <groupId>org.wildfly</groupId>
+      <artifactId>wildfly-feature-pack</artifactId>
       <type>zip</type>
       <scope>provided</scope>
       <exclusions>

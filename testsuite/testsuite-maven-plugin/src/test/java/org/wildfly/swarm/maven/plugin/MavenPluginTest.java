@@ -198,6 +198,12 @@ public class MavenPluginTest {
         verifier = new Verifier(projectDir.getAbsolutePath(), true);
         verifier.setForkJvm(true);
 
+        String settingsXml = System.getProperty("org.apache.maven.user-settings");
+        if (settingsXml != null && new File(settingsXml).isFile()) {
+            verifier.addCliOption("-s");
+            verifier.addCliOption(settingsXml);
+        }
+
         logPath = Paths.get(verifier.getBasedir()).resolve(verifier.getLogFileName());
     }
 
@@ -205,7 +211,7 @@ public class MavenPluginTest {
     public void buildUberjarAndRunTests() {
         try {
             doBuildUberjarAndRunTests();
-        } catch (Exception e) {
+        } catch (Exception | AssertionError e) {
             String additionalMessage;
             if (System.getProperty(SINGLE_TESTING_PROJECT_KEY) == null) {
                 additionalMessage = "Test failed for project [" + testingProject + "], use -D" + SINGLE_TESTING_PROJECT_KEY
@@ -215,7 +221,7 @@ public class MavenPluginTest {
                         + verifier.getBasedir() + " for manual inspection";
             }
 
-            throw new AssertionError(additionalMessage + "\n\n" + e.getMessage(), e);
+            throw new AssertionError(e.getMessage() + "\n\n" + additionalMessage, e);
         }
     }
 
@@ -250,7 +256,22 @@ public class MavenPluginTest {
         String log = new String(Files.readAllBytes(logPath), StandardCharsets.UTF_8);
 
         assertThat(log).doesNotContain("[ERROR]");
-        assertThat(log).doesNotContain("[WARNING]");
+        if (testingProject.packaging.hasCustomMain()) {
+            int count = 0;
+            int index = 0;
+            while ((index = log.indexOf("[WARNING]", index)) != -1) {
+                count++;
+                index++;
+            }
+
+            assertThat(log).contains("Custom main() usage is intended to be deprecated in a future release");
+            // 1st warning for wildfly-swarm:package
+            // 2nd warning possibly for wildfly-swarm:start for tests
+            assertThat(count).as("There should only be 1 or 2 warnings").isIn(1, 2);
+        } else {
+            assertThat(log).doesNotContain("[WARNING]");
+        }
+
         assertThat(log).contains("BUILD SUCCESS");
 
         checkFractionAutodetection(log);

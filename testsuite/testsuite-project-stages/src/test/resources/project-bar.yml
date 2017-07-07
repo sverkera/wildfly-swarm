@@ -1,2 +1,4 @@
 
-myname: bar
+swarm:
+  myname: bar
+  mydottednumber: 2.82

@@ -30,6 +30,7 @@ import org.jboss.as.controller.client.ModelControllerClient;
 import org.jboss.as.domain.management.SecurityRealm;
 import org.jboss.as.server.ServerEnvironment;
 import org.jboss.dmr.ModelNode;
+import org.jboss.logging.Logger;
 import org.jboss.msc.inject.Injector;
 import org.jboss.msc.service.Service;
 import org.jboss.msc.service.ServiceName;
@@ -37,8 +38,8 @@ import org.jboss.msc.service.StartContext;
 import org.jboss.msc.service.StartException;
 import org.jboss.msc.service.StopContext;
 import org.jboss.msc.value.InjectedValue;
+import org.wildfly.swarm.SwarmInfo;
 import org.wildfly.swarm.monitor.HealthMetaData;
-import org.wildfly.swarm.spi.api.internal.SwarmInternalProperties;
 
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.ADDRESS;
 import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.FAILURE_DESCRIPTION;
@@ -53,6 +54,8 @@ import static org.jboss.as.controller.descriptions.ModelDescriptionConstants.SUC
  */
 @Vetoed
 public class MonitorService implements Monitor, Service<MonitorService> {
+
+    private static Logger LOG = Logger.getLogger("org.wildfly.swarm.monitor.health");
 
     private static final String SELECT = "select";
 
@@ -74,7 +77,7 @@ public class MonitorService implements Monitor, Service<MonitorService> {
         controllerClient = modelControllerValue.getValue().createClient(executorService);
 
         if (!securityRealm.isPresent()) {
-            System.out.println("WARN: You are running the monitoring endpoints without any security realm configuration!");
+            LOG.warn("You are running the monitoring endpoints without any security realm configuration!");
         }
     }
 
@@ -105,7 +108,7 @@ public class MonitorService implements Monitor, Service<MonitorService> {
         try {
             ModelNode response = controllerClient.execute(op);
             ModelNode unwrapped = unwrap(response);
-            unwrapped.get("swarm-version").set(System.getProperty(SwarmInternalProperties.VERSION));
+            unwrapped.get("swarm-version").set(SwarmInfo.VERSION);
             return unwrapped;
         } catch (IOException e) {
             return new ModelNode().get(FAILURE_DESCRIPTION).set(e.getMessage());
@@ -158,7 +161,7 @@ public class MonitorService implements Monitor, Service<MonitorService> {
 
     @Override
     public void registerHealth(HealthMetaData metaData) {
-        System.out.println("Adding /health endpoint delegate: " + metaData.getWebContext());
+        LOG.info("Adding /health endpoint delegate: " + metaData.getWebContext());
         this.endpoints.add(metaData);
     }
 

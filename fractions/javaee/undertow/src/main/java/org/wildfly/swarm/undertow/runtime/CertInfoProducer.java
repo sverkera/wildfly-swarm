@@ -17,7 +17,10 @@ import javax.inject.Singleton;
 
 import org.jboss.modules.Module;
 import org.jboss.modules.ModuleIdentifier;
+import org.wildfly.swarm.SwarmInfo;
 import org.wildfly.swarm.bootstrap.util.TempFileManager;
+import org.wildfly.swarm.config.runtime.AttributeDocumentation;
+import org.wildfly.swarm.internal.SwarmMessages;
 import org.wildfly.swarm.spi.api.Defaultable;
 import org.wildfly.swarm.spi.api.annotations.Configurable;
 import org.wildfly.swarm.undertow.UndertowFraction;
@@ -34,12 +37,15 @@ public class CertInfoProducer {
     @Inject
     UndertowFraction undertow;
 
+    @AttributeDocumentation("Should a self-signed certificate be generated")
     @Configurable("swarm.https.certificate.generate")
     Defaultable<Boolean> generateSelfCertificate = bool(false);
 
+    @AttributeDocumentation("Hostname for the generated self-signed certificate")
     @Configurable("swarm.https.certificate.generate.host")
     Defaultable<String> selfCertificateHost = string("localhost");
 
+    @AttributeDocumentation("Should an embedded keystore be created")
     @Configurable("swarm.https.keystore.embedded")
     Defaultable<Boolean> embeddedKeystore = bool(false);
 
@@ -47,6 +53,9 @@ public class CertInfoProducer {
     @Singleton
     public CertInfo produceCertInfo() {
         if (generateSelfCertificate.get()) {
+            if (SwarmInfo.isProduct()) {
+                throw SwarmMessages.MESSAGES.generateSelfSignedCertificateNotSupported();
+            }
             checkDataDir();
             return new CertInfo(selfCertificateHost.get(), JBOSS_DATA_DIR);
         } else {
@@ -56,8 +65,14 @@ public class CertInfoProducer {
                 Path dataDir = Paths.get(System.getProperty(JBOSS_DATA_DIR));
                 Path certDestination = dataDir.resolve(keystorePath);
                 try {
-                    Module appModule = Module.getCallerModuleLoader().loadModule(ModuleIdentifier.create("swarm.application"));
-                    URL jks = appModule.getClassLoader().getResource(keystorePath);
+                    URL jks = ClassLoader.getSystemClassLoader().getResource(keystorePath);
+                    if (jks == null) {
+                        Module appModule = Module.getCallerModuleLoader().loadModule(ModuleIdentifier.create("swarm.application"));
+                        jks = appModule.getClassLoader().getResource(keystorePath);
+                    }
+                    if (jks == null) {
+                        throw new RuntimeException(String.format("Unable to locate embedded keystore %s in classpath", keystorePath));
+                    }
                     Files.copy(jks.openStream(), certDestination);
                     keystorePath = certDestination.toString();
                 } catch (Exception ie) {

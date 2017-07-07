@@ -25,10 +25,8 @@ import org.jboss.dmr.ModelNode;
 import org.jboss.dmr.ModelType;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.wildfly.swarm.Swarm;
 import org.wildfly.swarm.arquillian.DefaultDeployment;
 import org.wildfly.swarm.management.AuthCallbackHandler;
-import org.wildfly.swarm.management.ManagementFraction;
 
 import static org.fest.assertions.Assertions.assertThat;
 
@@ -38,33 +36,6 @@ import static org.fest.assertions.Assertions.assertThat;
 @RunWith(Arquillian.class)
 @DefaultDeployment
 public class ArqSecuredManagementInterfaceTest {
-
-    /*
-    @Deployment(testable = false)
-    public static Archive createDeployment() {
-        JARArchive deployment = ShrinkWrap.create(JARArchive.class, "myapp.jar");
-        deployment.add(EmptyAsset.INSTANCE, "nothing");
-        return deployment;
-    }
-
-    public static Swarm newContainer() throws Exception {
-        return new Swarm()
-                .fraction(
-                        ManagementFraction.createDefaultFraction()
-                                .httpInterfaceManagementInterface((iface) -> {
-                                    iface.securityRealm("ManagementRealm");
-                                })
-                                .securityRealm("ManagementRealm", (realm) -> {
-                                    realm.inMemoryAuthentication((authn) -> {
-                                        authn.add("bob", "tacos!", true);
-                                    });
-                                    realm.inMemoryAuthorization((authz) -> {
-                                        authz.add("bob", "admin");
-                                    });
-                                })
-                );
-    }
-    */
 
     @Test
     @RunAsClient

@@ -28,6 +28,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
@@ -81,7 +82,6 @@ import org.wildfly.swarm.spi.api.SocketBinding;
 import org.wildfly.swarm.spi.api.StageConfig;
 import org.wildfly.swarm.spi.api.SwarmProperties;
 import org.wildfly.swarm.spi.api.config.ConfigView;
-import org.wildfly.swarm.spi.api.internal.SwarmInternalProperties;
 
 /**
  * Default {@code main(...)} if an application does not provide one.
@@ -122,8 +122,6 @@ import org.wildfly.swarm.spi.api.internal.SwarmInternalProperties;
 @Vetoed
 public class Swarm {
 
-    public static final String VERSION = Swarm.class.getPackage().getImplementationVersion();
-
     private static final String BOOT_MODULE_PROPERTY = "boot.module.loader";
 
     public static final String APPLICATION_MODULE_NAME = "swarm.application";
@@ -131,6 +129,8 @@ public class Swarm {
     private static final String CONTAINER_MODULE_NAME = "swarm.container";
 
     private static final String PROJECT_STAGES_FILE = "project-stages.yml";
+
+    private static Swarm swarm;
 
     private final CommandLine commandLine;
 
@@ -175,22 +175,28 @@ public class Swarm {
      * @throws Exception If an error occurs performing classloading and initialization magic.
      */
     public Swarm(boolean debugBootstrap, String... args) throws Exception {
-        this(debugBootstrap, null, args);
+        this(debugBootstrap, null, null, args);
     }
 
     public Swarm(Properties properties, String... args) throws Exception {
-        this(false, properties, args);
+        this(false, properties, null, args);
     }
 
-    public Swarm(boolean debugBootstrap, Properties properties, String... args) throws Exception {
+    public Swarm(boolean debug, Properties properties, String... args) throws Exception {
+        this(debug, properties, null, args);
+    }
+
+    public Swarm(Properties properties, Map<String, String> environment, String... args) throws Exception {
+        this(false, properties, environment, args);
+    }
+
+    public Swarm(boolean debugBootstrap, Properties properties, Map<String, String> environment, String... args) throws Exception {
         if (System.getProperty(BOOT_MODULE_PROPERTY) == null) {
             System.setProperty(BOOT_MODULE_PROPERTY, BootModuleLoader.class.getName());
         }
         if (debugBootstrap) {
             Module.setModuleLogger(new StreamModuleLogger(System.err));
         }
-
-        System.setProperty(SwarmInternalProperties.VERSION, (VERSION == null ? "unknown" : VERSION));
 
         setArgs(args);
         this.debugBootstrap = debugBootstrap;
@@ -217,11 +223,12 @@ public class Swarm {
         installModuleMBeanServer();
         createShrinkWrapDomain();
 
-        this.configView = ConfigViewFactory.defaultFactory(properties);
+        this.configView = ConfigViewFactory.defaultFactory(properties, environment);
         this.commandLine = CommandLine.parse(args);
         this.commandLine.apply(this);
+        initializeConfigView(properties);
 
-        initializeConfigView();
+        this.isConstructing = false;
     }
 
     /**
@@ -262,14 +269,26 @@ public class Swarm {
     }
 
     public Swarm withConfig(URL url) throws IOException {
-        String uuid = UUID.randomUUID().toString();
-        this.configView.load(uuid, url);
+        if (!isConstructing) {
+            String uuid = UUID.randomUUID().toString();
+            this.configView.load(uuid, url);
+            this.configView.withProfile(uuid);
+        }
+        this.configs.add(url);
         return this;
     }
 
     public Swarm withProfile(String name) {
-        this.configView.load(name);
-        this.configView.get().withProfile(name);
+        if (!isConstructing) {
+            this.configView.load(name);
+            this.configView.withProfile(name);
+        }
+        this.profiles.add(name);
+        return this;
+    }
+
+    public Swarm withProperty(String name, String value) {
+        this.configView.withProperty(name, value);
         return this;
     }
 
@@ -333,6 +352,7 @@ public class Swarm {
      * @throws Exception if an error occurs.
      */
     public Swarm start() throws Exception {
+
         try (AutoCloseable handle = Performance.time("Swarm.start()")) {
 
             Module module = Module.getBootModuleLoader().loadModule(ModuleIdentifier.create(CONTAINER_MODULE_NAME));
@@ -377,6 +397,7 @@ public class Swarm {
      * @throws Exception If an error occurs.
      */
     public Swarm stop() throws Exception {
+
         if (this.server == null) {
             throw SwarmMessages.MESSAGES.containerNotStarted("stop()");
         }
@@ -500,7 +521,7 @@ public class Swarm {
                         props.load(in);
                         if (props.containsKey(BootstrapProperties.APP_ARTIFACT)) {
                             System.setProperty(BootstrapProperties.APP_ARTIFACT,
-                                    props.getProperty(BootstrapProperties.APP_ARTIFACT));
+                                               props.getProperty(BootstrapProperties.APP_ARTIFACT));
                         }
 
                         Set<String> names = props.stringPropertyNames();
@@ -519,7 +540,7 @@ public class Swarm {
         return false;
     }
 
-    private void initializeConfigView() throws IOException, ModuleLoadException {
+    private void initializeConfigView(Properties props) throws IOException, ModuleLoadException {
         try (AutoCloseable handle = Performance.time("Loading YAML")) {
             if (System.getProperty(SwarmProperties.PROJECT_STAGE_FILE) != null) {
                 String file = System.getProperty(SwarmProperties.PROJECT_STAGE_FILE);
@@ -546,17 +567,42 @@ public class Swarm {
 
             //List<String> activatedNames = new ArrayList<>();
 
-            if (System.getProperty(SwarmProperties.PROJECT_STAGE) != null) {
-                String prop = System.getProperty(SwarmProperties.PROJECT_STAGE);
-                String[] activated = prop.split(",");
-                for (String each : activated) {
-                    this.configView.get().withProfile(each);
+            String projectStageProp = System.getProperty(SwarmProperties.PROJECT_STAGE);
+            if (projectStageProp == null && props != null) {
+                projectStageProp = props.getProperty(SwarmProperties.PROJECT_STAGE);
+            }
+
+            if (projectStageProp == null) {
+                projectStageProp = this.configView.get().resolve(SwarmProperties.PROJECT_STAGE).withDefault("NOT_FOUND").getValue();
+                if (projectStageProp != null && projectStageProp.equals("NOT_FOUND")) {
+                    projectStageProp = null;
                 }
             }
 
-            // deprecated project-stages.yml
+            if (projectStageProp != null) {
+                String[] activated = projectStageProp.split(",");
+                for (String each : activated) {
+                    this.configView.load(each);
+                    this.configView.withProfile(each);
+                }
+            }
+
+            int counter = 0;
+            for (URL config : this.configs) {
+                String syntheticName = "cli-" + (++counter);
+                this.configView.load(syntheticName, config);
+                this.configView.withProfile(syntheticName);
+            }
+
             this.configView.load("stages");
+
+            for (String profile : this.profiles) {
+                this.configView.load(profile);
+                this.configView.withProfile(profile);
+            }
+
             this.configView.load("defaults");
+
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -576,8 +622,47 @@ public class Swarm {
             System.setProperty(BOOT_MODULE_PROPERTY, "org.wildfly.swarm.bootstrap.modules.BootModuleLoader");
         }
 
-        Swarm swarm = new Swarm(args);
-        swarm.start().deploy();
+        swarm = new Swarm(args);
+
+        try {
+            swarm.start();
+            if (System.getProperty("swarm.inhibit.default-deployment") == null) {
+                swarm.deploy();
+            }
+        } catch (final VirtualMachineError vme) {
+            // Don't even try to swarm.stop() in case of OOM etc.
+            vme.printStackTrace();
+            System.exit(1);
+        } catch (final Throwable t) {
+            tryToStopAfterStartupError(t, swarm);
+            throw t;
+        }
+    }
+
+    public static void stopMain() throws Exception {
+       try {
+            if (swarm != null) {
+                swarm.stop();
+            }
+       } catch (Exception e) {
+       }
+    }
+
+    private static void tryToStopAfterStartupError(final Throwable errorCause, final Swarm swarm) {
+        // Try to swarm.stop() if needed.
+        if (swarm.server != null) {
+            // Server was apparently started but might be in an inconsistent state and stop() might therefore fail.
+            // So, to avoid overlaying/shadowing of errorCause we need to perform a "failsafe" stop().
+            try {
+                swarm.stop();
+            } catch (final Throwable t) {
+                // To avoid keeping the potentially inconsistent server/JVM running, we explicitly kill it.
+                // SwarmMessages is not usable here because swarm.start() might not even have made it past logging setup.
+                errorCause.printStackTrace();
+                t.printStackTrace();
+                System.exit(1);
+            }
+        }
     }
 
     private static ArtifactLookup artifactLookup() {
@@ -664,6 +749,7 @@ public class Swarm {
      * @return The {@code ConfigView} through a deprecated interface.
      * @see #configView()
      */
+    @SuppressWarnings("deprecation")
     @Deprecated
     public StageConfig stageConfig() {
         return this.configView.get();
@@ -690,4 +776,7 @@ public class Swarm {
     private List<String> profiles = new ArrayList<>();
 
     private boolean debugBootstrap;
+
+    private boolean isConstructing = true;
+
 }

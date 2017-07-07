@@ -48,14 +48,14 @@ import org.jboss.msc.service.StartException;
 import org.jboss.msc.service.ValueService;
 import org.jboss.msc.value.ImmediateValue;
 import org.jboss.shrinkwrap.api.Archive;
-import org.wildfly.swarm.bootstrap.logging.BootstrapLogger;
 import org.wildfly.swarm.bootstrap.performance.Performance;
 import org.wildfly.swarm.bootstrap.util.TempFileManager;
 import org.wildfly.swarm.container.internal.Deployer;
 import org.wildfly.swarm.container.internal.Server;
 import org.wildfly.swarm.container.runtime.deployments.DefaultDeploymentCreator;
 import org.wildfly.swarm.container.runtime.marshal.DMRMarshaller;
-import org.wildfly.swarm.container.runtime.wildfly.SimpleContentProvider;
+import org.wildfly.swarm.container.runtime.wildfly.ContentRepositoryServiceActivator;
+import org.wildfly.swarm.container.runtime.wildfly.SwarmContentRepository;
 import org.wildfly.swarm.container.runtime.wildfly.UUIDFactory;
 import org.wildfly.swarm.container.runtime.xmlconfig.BootstrapConfiguration;
 import org.wildfly.swarm.container.runtime.xmlconfig.BootstrapPersister;
@@ -85,7 +85,7 @@ public class RuntimeServer implements Server {
     private Instance<ServiceActivator> serviceActivators;
 
     @Inject
-    @Any
+    @ImplicitDeployment
     private Instance<Archive> implicitDeployments;
 
     @Inject
@@ -95,7 +95,7 @@ public class RuntimeServer implements Server {
     private DefaultDeploymentCreator defaultDeploymentCreator;
 
     @Inject
-    private SimpleContentProvider contentProvider;
+    private SwarmContentRepository contentRepository;
 
     @Inject
     private Instance<RuntimeDeployer> deployer;
@@ -109,12 +109,12 @@ public class RuntimeServer implements Server {
 
     public RuntimeServer() {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            if (container != null) {
+            if (containerStarted) {
                 try {
-                    LOG.info("Shutdown requested ...");
+                    SwarmMessages.MESSAGES.shutdownRequested();
                     stop();
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    throw new RuntimeException(e);
                 }
             }
         }));
@@ -134,7 +134,6 @@ public class RuntimeServer implements Server {
         File configurationFile;
         try {
             configurationFile = TempFileManager.INSTANCE.newTempFile("swarm-config-", ".xml");
-            LOG.debug("Temporarily storing configuration at: " + configurationFile.getAbsolutePath());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -163,12 +162,23 @@ public class RuntimeServer implements Server {
             }
         }
 
+        this.socketBindingGroupConfigurer.configure();
+
+        /*
+        this.archivePreparers.forEach(e -> {
+            // Log it to prevent dead-code elimination.
+            //
+            // This is purely to ensure @Configurables are scanned
+            // prior to logging the configurables.
+            SwarmMessages.MESSAGES.registeredArchivePreparer(e.toString());
+        });
+        */
+
         try (AutoCloseable handle = Performance.time("configurable-manager rescan")) {
             this.configurableManager.rescan();
             this.configurableManager.log();
             this.configurableManager.close();
         }
-
 
         try (AutoCloseable handle = Performance.time("marshall DMR")) {
             this.dmrMarshaller.marshal(bootstrapOperations);
@@ -182,10 +192,14 @@ public class RuntimeServer implements Server {
 
         this.serviceActivators.forEach(activators::add);
 
+        activators.add(new ContentRepositoryServiceActivator(this.contentRepository));
+
         try (AutoCloseable wildflyStart = Performance.time("WildFly start")) {
             ServiceContainer serviceContainer = null;
             try (AutoCloseable startWildflyItself = Performance.time("Starting WildFly itself")) {
-                serviceContainer = this.container.start(bootstrapOperations, this.contentProvider, activators);
+                //serviceContainer = this.container.start(bootstrapOperations, this.contentProvider, activators);
+                serviceContainer = this.container.start(bootstrapOperations, null, activators);
+                this.containerStarted = true;
             }
             try (AutoCloseable checkFailedServices = Performance.time("Checking for failed services")) {
                 for (ServiceName serviceName : serviceContainer.getServiceNames()) {
@@ -216,9 +230,13 @@ public class RuntimeServer implements Server {
 
             try (AutoCloseable deployments = Performance.time("Implicit Deployments")) {
                 for (Archive each : this.implicitDeployments) {
-                    deployer.deploy(each);
+                    if (each != null) {
+                        deployer.deploy(each);
+                    }
                 }
             }
+
+            this.artifactDeployer.deploy();
 
             return deployer;
         }
@@ -237,8 +255,10 @@ public class RuntimeServer implements Server {
     public void stop() throws Exception {
         this.container.stop();
         awaitContainerTermination();
+        this.containerStarted = false;
         this.container = null;
         this.client = null;
+        this.deployer.get().removeAllContent();
         this.deployer = null;
     }
 
@@ -249,7 +269,7 @@ public class RuntimeServer implements Server {
             ExecutorService executor = (ExecutorService) field.get(this.container);
             executor.awaitTermination(10, TimeUnit.SECONDS);
         } catch (NoSuchFieldException | IllegalAccessException | InterruptedException e) {
-            e.printStackTrace();
+            SwarmMessages.MESSAGES.errorWaitingForContainerShutdown(e);
         }
     }
 
@@ -260,7 +280,14 @@ public class RuntimeServer implements Server {
 
     private SelfContainedContainer container;
 
-    private ModelControllerClient client;
+    // Container does not expose this state and it's class is final so it cannot be subclassed.
+    private boolean containerStarted;
 
-    private BootstrapLogger LOG = BootstrapLogger.logger("org.wildfly.swarm.runtime.server");
+    @Inject
+    private ArtifactDeployer artifactDeployer;
+
+    @Inject
+    private SocketBindingGroupConfigurer socketBindingGroupConfigurer;
+
+    private ModelControllerClient client;
 }

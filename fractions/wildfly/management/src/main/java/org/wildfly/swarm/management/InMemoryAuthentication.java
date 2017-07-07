@@ -19,12 +19,15 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Enumeration;
 import java.util.Properties;
+import java.util.function.Consumer;
 
 import org.wildfly.swarm.config.management.security_realm.PlugInAuthentication;
+import org.wildfly.swarm.spi.api.annotations.Configurable;
 
 /**
  * @author Bob McWhirter
  */
+@Configurable
 public class InMemoryAuthentication {
 
     public InMemoryAuthentication(String realm, PlugInAuthentication plugin) {
@@ -47,6 +50,18 @@ public class InMemoryAuthentication {
         }
     }
 
+    @Configurable
+    public InMemoryAuthentication user(String userName, Consumer<InMemoryUserAuthentication> consumer) {
+        InMemoryUserAuthentication config = new InMemoryUserAuthentication();
+        consumer.accept(config);
+        if (config.password() != null) {
+            add(userName, config.password(), true);
+        } else {
+            add(userName, config.hash(), false);
+        }
+        return this;
+    }
+
     public void add(String userName, String password) {
         add(userName, password, false);
     }
@@ -59,7 +74,7 @@ public class InMemoryAuthentication {
                 byte[] hash = digest.digest(str.getBytes());
                 add(userName, hash);
             } catch (NoSuchAlgorithmException e) {
-                e.printStackTrace();
+                ManagementMessages.MESSAGES.unknownAlgorithm("MD5", e);
             }
         } else {
             this.plugin.property(userName + ".hash", (prop) -> {

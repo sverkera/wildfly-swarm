@@ -48,6 +48,20 @@ public class ConfigViewImpl implements ConfigView {
             this.strategy.withProperties(properties);
         }
         return this;
+    }
+
+    public ConfigViewImpl withProperty(String name, String value) {
+        this.strategy.withProperty(name, value);
+        return this;
+    }
+
+    public ConfigViewImpl withEnvironment(Map<String, String> environment) {
+        if (environment != null) {
+            this.strategy.withEnvironment(environment);
+        } else {
+            this.strategy.withEnvironment(System.getenv());
+        }
+        return this;
 
     }
 
@@ -98,15 +112,7 @@ public class ConfigViewImpl implements ConfigView {
         return this.strategy.valueOf(key);
     }
 
-    /**
-     * Activate this view with the given node names.
-     *
-     * <p>This method should be called only after defaults, properties
-     * and all relevant nodes have been registered.</p>
-     *
-     * @param names The names to activate.
-     */
-    public void withProfile(String... names) {
+    void withProfile(String... names) {
         for (String name : names) {
             List<ConfigNode> nodes = this.registry.get(name);
             if (nodes != null) {
@@ -118,7 +124,7 @@ public class ConfigViewImpl implements ConfigView {
 
     }
 
-    public void withProfile(List<String> names) {
+    void withProfile(List<String> names) {
         withProfile(names.toArray(new String[]{}));
     }
 
@@ -136,7 +142,7 @@ public class ConfigViewImpl implements ConfigView {
     }
 
     @Override
-    public Set<SimpleKey> simpleSubkeys(ConfigKey prefix) {
+    public List<SimpleKey> simpleSubkeys(ConfigKey prefix) {
         return this.strategy.simpleSubkeysOf(prefix);
     }
 

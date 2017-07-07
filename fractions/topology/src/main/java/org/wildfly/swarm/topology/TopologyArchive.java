@@ -26,12 +26,14 @@ import org.jboss.shrinkwrap.api.Assignable;
  */
 public interface TopologyArchive extends Assignable {
     String REGISTRATION_CONF = "META-INF/swarm-topology-registration.conf";
+    String SERVICE_TAG_SEPARATOR = " ";
+    String TAG_SEPARATOR = ",";
 
     TopologyArchive advertise();
 
-    TopologyArchive advertise(String... serviceNames);
+    TopologyArchive advertise(String serviceName);
 
-    TopologyArchive advertise(Collection<String> serviceNames);
+    TopologyArchive advertise(String serviceName, Collection<String> tags);
 
     List<String> advertisements();
 

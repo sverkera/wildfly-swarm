@@ -7,13 +7,14 @@ import java.io.Writer;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 import org.wildfly.swarm.bootstrap.util.BootstrapProperties;
 import org.yaml.snakeyaml.DumperOptions;
@@ -60,6 +61,7 @@ public class WildFlySwarmManifest {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public void read(InputStream in) throws IOException {
         Yaml yaml = new Yaml();
         Map data = (Map) yaml.load(in);
@@ -98,7 +100,7 @@ public class WildFlySwarmManifest {
 
     @Override
     public String toString() {
-        Map data = new LinkedHashMap() {{
+        Map<String,Object> data = new LinkedHashMap<String,Object>() {{
             if (asset != null) {
                 put(ASSET, asset);
             }
@@ -119,7 +121,7 @@ public class WildFlySwarmManifest {
         return yaml.dump(data);
     }
 
-    protected void setupProperties() {
+    private void setupProperties() {
         // enumerate all properties, not just those with string
         // values, because Gradle (and others) can set non-string
         // values for things like swarm.http.port (integer)
@@ -143,7 +145,7 @@ public class WildFlySwarmManifest {
         this.bootstrapModules.add(module);
     }
 
-    public List<String> bootstrapModules() {
+    public Set<String> bootstrapModules() {
         return this.bootstrapModules;
     }
 
@@ -151,7 +153,7 @@ public class WildFlySwarmManifest {
         this.bootstrapArtifacts.add(artifact);
     }
 
-    public List<String> bootstrapArtifacts() {
+    public Set<String> bootstrapArtifacts() {
         return this.bootstrapArtifacts;
     }
 
@@ -159,7 +161,7 @@ public class WildFlySwarmManifest {
         this.dependencies.add(gav);
     }
 
-    public List<String> getDependencies() {
+    public Set<String> getDependencies() {
         return this.dependencies;
     }
 
@@ -217,11 +219,11 @@ public class WildFlySwarmManifest {
 
     private String asset = null;
 
-    private List<String> bootstrapModules = new ArrayList<>();
+    private Set<String> bootstrapModules = new LinkedHashSet<>();
 
-    private List<String> bootstrapArtifacts = new ArrayList<>();
+    private Set<String> bootstrapArtifacts = new LinkedHashSet<>();
 
-    private List<String> dependencies = new ArrayList<>();
+    private Set<String> dependencies = new HashSet<>();
 
     private Properties properties = new Properties();
 

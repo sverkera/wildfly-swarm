@@ -28,13 +28,13 @@ import org.jboss.logging.annotations.MessageLogger;
 /**
  * @author <a href="mailto:jperkins@redhat.com">James R. Perkins</a>
  */
-@MessageLogger(projectCode = "WFSWARM", length = 4)
+@MessageLogger(projectCode = "WFSMETRICS", length = 4)
 public interface SwarmMetricsMessages extends BasicLogger {
 
     SwarmMetricsMessages MESSAGES = Logger.getMessageLogger(SwarmMetricsMessages.class, "org.wildfly.swarm.metrics");
 
     @LogMessage(level = Logger.Level.TRACE)
-    @Message(id = 39, value = "Boot performance:\n%s")
+    @Message(id = 1, value = "Boot performance:\n%s")
     void bootPerformance(String metrics);
 
 }

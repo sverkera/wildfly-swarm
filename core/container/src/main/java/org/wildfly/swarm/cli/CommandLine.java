@@ -37,6 +37,7 @@ import org.jboss.modules.ModuleClassLoader;
 import org.jboss.modules.ModuleIdentifier;
 import org.jboss.modules.ModuleLoadException;
 import org.wildfly.swarm.Swarm;
+import org.wildfly.swarm.SwarmInfo;
 import org.wildfly.swarm.spi.api.SwarmProperties;
 
 /**
@@ -48,6 +49,10 @@ import org.wildfly.swarm.spi.api.SwarmProperties;
 public class CommandLine {
 
     private static final String CONFIG_ELEMENT = "<config>";
+
+    private static final String FRACTION = "fraction";
+
+    private static final String ALL = "all";
 
     /**
      * Default option for parsing -h and --help
@@ -63,6 +68,12 @@ public class CommandLine {
             .withLong("config-help")
             .hasValue("<fraction>")
             .withDescription("Display configuration help by fraction, or 'all' for all")
+            .then((cmd, opt, value) -> cmd.put(opt, value));
+
+    public static final Option<String> YAML_HELP = new Option<String>()
+            .withLong("yaml-help")
+            .hasValue("<fraction>")
+            .withDescription("Display example YAML configuration by fraction, or 'all' for all")
             .then((cmd, opt, value) -> cmd.put(opt, value));
 
     /**
@@ -165,6 +176,7 @@ public class CommandLine {
         return new Options(
                 HELP,
                 CONFIG_HELP,
+                YAML_HELP,
                 VERSION,
                 PROPERTY,
                 PROPERTIES_URL,
@@ -226,8 +238,8 @@ public class CommandLine {
             URL each = docs.nextElement();
             Properties fractionDocs = new Properties();
             fractionDocs.load(each.openStream());
-            if (fraction.equals("all") || fraction.equals(fractionDocs.getProperty("fraction"))) {
-                fractionDocs.remove("fraction");
+            if (fraction.equals(ALL) || fraction.equals(fractionDocs.getProperty(FRACTION))) {
+                fractionDocs.remove(FRACTION);
                 props.putAll(fractionDocs);
             }
         }
@@ -240,6 +252,25 @@ public class CommandLine {
                     out.println(formatDocs("    ", props.getProperty(key)));
                     out.println();
                 });
+    }
+
+    public void dumpYaml(PrintStream out, String fraction) throws IOException, ModuleLoadException {
+        ModuleClassLoader cl = Module.getBootModuleLoader().loadModule(ModuleIdentifier.create("swarm.application")).getClassLoader();
+        Enumeration<URL> docs = cl.getResources("META-INF/configuration-meta.properties");
+
+        Properties props = new Properties();
+
+        while (docs.hasMoreElements()) {
+            URL each = docs.nextElement();
+            Properties fractionDocs = new Properties();
+            fractionDocs.load(each.openStream());
+            if (fraction.equals(ALL) || fraction.equals(fractionDocs.getProperty(FRACTION))) {
+                fractionDocs.remove(FRACTION);
+                props.putAll(fractionDocs);
+            }
+        }
+
+        YamlDumper.dump(out, props);
     }
 
     private String formatDocs(String indent, String docs) {
@@ -281,7 +312,7 @@ public class CommandLine {
      * @param out The output stream to display help upon.
      */
     public void displayVersion(PrintStream out) {
-        out.println("WildFly Swarm version " + Swarm.VERSION);
+        out.println("WildFly Swarm version " + SwarmInfo.VERSION);
     }
 
     /**
@@ -292,7 +323,7 @@ public class CommandLine {
      *
      * @throws IOException If a URL is attempted to be read and fails.
      */
-    public void applyProperties() throws IOException {
+    public void applyProperties(Swarm swarm) throws IOException {
         URL propsUrl = get(PROPERTIES_URL);
 
         if (propsUrl != null) {
@@ -300,19 +331,20 @@ public class CommandLine {
             urlProps.load(propsUrl.openStream());
 
             for (String name : urlProps.stringPropertyNames()) {
-                System.setProperty(name, urlProps.getProperty(name));
+                swarm.withProperty(name, urlProps.getProperty(name));
             }
         }
 
         Properties props = get(PROPERTY);
 
         for (String name : props.stringPropertyNames()) {
-            System.setProperty(name, props.getProperty(name));
+            swarm.withProperty(name, props.getProperty(name));
         }
 
         if (get(BIND) != null) {
-            System.setProperty(SwarmProperties.BIND_ADDRESS, get(BIND));
+            swarm.withProperty(SwarmProperties.BIND_ADDRESS, get(BIND));
         }
+
     }
 
     /**
@@ -348,7 +380,7 @@ public class CommandLine {
      * @throws IOException If an error occurs resolving any URL.
      */
     public void apply(Swarm swarm) throws IOException, ModuleLoadException {
-        applyProperties();
+        applyProperties(swarm);
         applyConfigurations(swarm);
 
         if (get(HELP)) {
@@ -360,6 +392,11 @@ public class CommandLine {
 
         if (get(CONFIG_HELP) != null) {
             displayConfigHelp(System.err, get(CONFIG_HELP));
+            System.exit(0);
+        }
+
+        if (get(YAML_HELP) != null) {
+            dumpYaml(System.err, get(YAML_HELP));
             System.exit(0);
         }
 

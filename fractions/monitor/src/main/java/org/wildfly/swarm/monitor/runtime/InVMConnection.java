@@ -1,6 +1,7 @@
 package org.wildfly.swarm.monitor.runtime;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.util.LinkedList;
@@ -54,15 +55,17 @@ final class InVMConnection extends ServerConnection {
 
     protected final List<CloseListener> closeListeners = new LinkedList<>();
 
-    InVMConnection(XnioWorker worker) {
+    InVMConnection(XnioWorker worker, int port) {
         this.bufferPool = new DefaultByteBufferPool(false, 1024, 0, 0);
         this.worker = worker;
+        this.address = new InetSocketAddress(port); // port carried forward from the initial
     }
 
     public void flushTo(StringBuffer sb) {
         bufferSink.flushTo(sb);
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     public Pool<ByteBuffer> getBufferPool() {
         if (poolAdaptor == null) {
@@ -103,7 +106,7 @@ final class InVMConnection extends ServerConnection {
 
     @Override
     public boolean isOpen() {
-        return true;
+        return !this.closed;
     }
 
     @Override
@@ -123,6 +126,7 @@ final class InVMConnection extends ServerConnection {
 
     @Override
     public void close() throws IOException {
+        this.closed = true;
     }
 
     @Override
@@ -142,12 +146,12 @@ final class InVMConnection extends ServerConnection {
 
     @Override
     public SocketAddress getLocalAddress() {
-        return null;
+        return address;
     }
 
     @Override
     public <A extends SocketAddress> A getLocalAddress(Class<A> type) {
-        return null;
+        return (A) address;
     }
 
     @Override
@@ -190,18 +194,12 @@ final class InVMConnection extends ServerConnection {
                         new PooledAdaptor(bufferPool.allocate())
                 )
         );
-        sinkChannel.setCloseListener(new ChannelListener<ConduitStreamSinkChannel>() {
-            @Override
-            public void handleEvent(ConduitStreamSinkChannel conduitStreamSinkChannel) {
+        sinkChannel.setCloseListener(conduitStreamSinkChannel -> {
+            for (CloseListener l : closeListeners) {
                 try {
-                    for (CloseListener l : closeListeners) {
-                        try {
-                            l.closed(InVMConnection.this);
-                        } catch (Throwable e) {
-                            UndertowLogger.REQUEST_LOGGER.exceptionInvokingCloseListener(l, e);
-                        }
-                    }
-                } finally {
+                    l.closed(InVMConnection.this);
+                } catch (Throwable e) {
+                    UndertowLogger.REQUEST_LOGGER.exceptionInvokingCloseListener(l, e);
                 }
             }
         });
@@ -253,4 +251,7 @@ final class InVMConnection extends ServerConnection {
         return "mock";
     }
 
+    private boolean closed;
+
+    private final InetSocketAddress address;
 }

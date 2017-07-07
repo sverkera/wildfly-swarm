@@ -16,6 +16,7 @@
 package org.wildfly.swarm.monitor.runtime;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -150,14 +151,13 @@ class HttpContexts implements HttpHandler {
 
                     int i = 0;
                     for (InVMResponse resp : responses) {
-                        if (200 == resp.getStatus()) {
-                            sb.append(resp.getPayload());
-                        } else if (503 == resp.getStatus()) {
-                            sb.append(resp.getPayload());
-                            failed = true;
-                        } else {
-                            throw new RuntimeException("Unexpected status code: " + resp.getStatus());
+
+                        sb.append(resp.getPayload());
+
+                        if (!failed) {
+                            failed = resp.getStatus() != 200;
                         }
+
                         if (i < responses.size() - 1) {
                             sb.append(",\n");
                         }
@@ -173,6 +173,8 @@ class HttpContexts implements HttpHandler {
                     if (failed) {
                         exchange.setStatusCode(503);
                     }
+
+                    exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
                     exchange.getResponseSender().send(sb.toString());
 
                 } else {
@@ -201,7 +203,10 @@ class HttpContexts implements HttpHandler {
 
             String delegateContext = healthCheck.getWebContext();
 
-            final InVMConnection connection = new InVMConnection(worker);
+            final InVMConnection connection = new InVMConnection(
+                    worker,
+                    exchange.getConnection().getLocalAddress(InetSocketAddress.class).getPort()
+            );
             final HttpServerExchange mockExchange = new HttpServerExchange(connection);
             mockExchange.setRequestScheme("http");
             mockExchange.setRequestMethod(new HttpString("GET"));
@@ -219,7 +224,20 @@ class HttpContexts implements HttpHandler {
                     StringBuffer sb = new StringBuffer();
                     ((InVMConnection) connection).flushTo(sb);
                     LOG.trace("Response payload: " + sb.toString());
-                    responses.add(new InVMResponse(mockExchange.getStatusCode(), sb.toString()));
+                    if ("application/json".equals(mockExchange.getResponseHeaders().getFirst(Headers.CONTENT_TYPE))) {
+                        responses.add(new InVMResponse(mockExchange.getStatusCode(), sb.toString()));
+                    } else {
+                        StringBuffer json = new StringBuffer("{");
+                        json.append("\"id\"").append(":\"").append(mockExchange.getRelativePath()).append("\",");
+                        json.append("\"result\"").append(":\"").append("DOWN").append("\",");
+                            json.append("\"data\"").append(":").append("{");
+                                json.append("\"status-code\"").append(":").append(mockExchange.getStatusCode());
+                            json.append("}");
+                        json.append("}");
+
+                        responses.add(new InVMResponse(mockExchange.getStatusCode(), json.toString()));
+                    }
+
                     mockExchange.removeAttachment(RESPONSES);
                     IoUtils.safeClose(connection);
                     latch.countDown();

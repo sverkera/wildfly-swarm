@@ -1,6 +1,8 @@
 package org.wildfly.swarm;
 
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 import org.junit.Test;
@@ -61,20 +63,89 @@ public class ProjectStagesTest {
     }
 
     @Test
+    public void testCLIBasedSelectedStage() throws Exception {
+        Swarm swarm = new Swarm(new Properties(),
+                "-S", "production");
+
+        ConfigView view = swarm.configView();
+        assertThat(view.resolve("foo.bar.baz").getValue()).isEqualTo("brie");
+    }
+
+    @Test
     public void testSwarmAPIToLoadConfig() throws Exception {
-        Swarm swarm = new Swarm( new Properties());
+        Swarm swarm = new Swarm(new Properties());
         swarm.withProfile("foo");
         ConfigView view = swarm.configView();
-        assertThat(view.resolve("myname").getValue()).isEqualTo("foo");
+        assertThat(view.resolve("swarm.myname").getValue()).isEqualTo("foo");
         swarm.withProfile("bar");
-        assertThat(view.resolve("myname").getValue()).isEqualTo("foo");
+        assertThat(view.resolve("swarm.myname").getValue()).isEqualTo("foo");
+        assertThat(view.resolve("swarm.mydottednumber").as(Double.class).getValue()).isEqualTo(2.82);
     }
 
     @Test
     public void testCLIToLoadConfig() throws Exception {
         Swarm swarm = new Swarm(new Properties(), "-Sfoo");
         ConfigView view = swarm.configView();
-        assertThat(view.resolve("myname").getValue()).isEqualTo("foo");
+        assertThat(view.resolve("swarm.myname").getValue()).isEqualTo("foo");
+    }
+
+    @Test
+    public void testEnvironmentVars() throws Exception {
+        Map<String, String> environment = new HashMap<>();
+        environment.put("swarm.myname", "from_env");
+        Swarm swarm = new Swarm(new Properties(), environment);
+
+        ConfigView view = swarm.configView();
+        assertThat(view.resolve("swarm.myname").getValue()).isEqualTo("from_env");
+    }
+
+    @Test
+    public void testPropertiesPreferredToEnvironmentVars() throws Exception {
+        Map<String, String> environment = new HashMap<>();
+        Properties properties = new Properties();
+
+        environment.put("swarm.myname", "from_env");
+        properties.setProperty("swarm.myname", "from_props");
+
+        Swarm swarm = new Swarm(properties, environment);
+
+        ConfigView view = swarm.configView();
+        assertThat(view.resolve("swarm.myname").getValue()).isEqualTo("from_props");
+    }
+
+    @Test
+    public void testPropertiesOnCLIPreferredToEnvironmentVars() throws Exception {
+        Map<String, String> environment = new HashMap<>();
+        Properties properties = new Properties();
+
+        environment.put("swarm.myname", "from_env");
+        properties.setProperty("swarm.myname", "from_props");
+
+        Swarm swarm = new Swarm(properties, environment, "-Dswarm.myname=tacos");
+
+        ConfigView view = swarm.configView();
+        assertThat(view.resolve("swarm.myname").getValue()).isEqualTo("tacos");
+    }
+
+    @Test
+    public void testPseudoPropertiesToSelectProjectStage() throws Exception {
+        Swarm swarm = new Swarm(new Properties(),
+                                "-Dswarm.project.stage=production");
+
+        ConfigView view = swarm.configView();
+        assertThat(view.resolve("foo.bar.baz").getValue()).isEqualTo("brie");
+    }
+
+    @Test
+    public void testIsolatedPropertiesToSelectProjectStage() throws Exception {
+        Properties props = new Properties();
+        props.setProperty("swarm.project.stage", "production");
+        Swarm swarm = new Swarm(props,
+                                "-Dswarm.project.stage=production");
+
+        ConfigView view = swarm.configView();
+        assertThat(view.resolve("foo.bar.baz").getValue()).isEqualTo("brie");
+        assertThat(view.resolve("foo.bar.taco").getValue()).isEqualTo("crunchy");
     }
 
 }

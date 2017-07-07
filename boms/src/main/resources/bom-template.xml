@@ -49,6 +49,7 @@
   <properties>
     <version.shrinkwrap>${version.org.jboss.shrinkwrap}</version.shrinkwrap>
     <version.shrinkwrap-descriptors>${version.org.jboss.shrinkwrap.descriptors}</version.shrinkwrap-descriptors>
+    <version.wildfly-swarm>${project.version}</version.wildfly-swarm>
   </properties>
 
   <dependencyManagement>
@@ -65,6 +66,13 @@
         <groupId>org.jboss.shrinkwrap.descriptors</groupId>
         <artifactId>shrinkwrap-descriptors-bom</artifactId>
         <version>${version.shrinkwrap-descriptors}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.wildfly.swarm</groupId>
+        <artifactId>dependency-bom</artifactId>
+        <version>${version.wildfly-swarm}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>

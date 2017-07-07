@@ -2,10 +2,10 @@ package org.wildfly.swarm.container.config;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -45,13 +45,19 @@ class ConfigResolutionStrategy {
     }
 
     private ConfigResolutionStrategy(PropertiesManipulator properties) {
-        this.nodes.add(PropertiesConfigNodeFactory.load(properties.getProperties()));
+        this.propertiesNode = PropertiesConfigNodeFactory.load(properties.getProperties());
+        this.nodes.add(this.propertiesNode);
         this.properties = properties;
     }
 
     void withProperties(Properties properties) {
-        this.nodes.add(PropertiesConfigNodeFactory.load(properties));
+        this.propertiesNode = PropertiesConfigNodeFactory.load(properties);
+        this.nodes.add(this.propertiesNode);
         this.properties = PropertiesManipulator.forProperties(properties);
+    }
+
+    void withEnvironment(Map<String, String> environment) {
+        this.nodes.add(EnvironmentConfigNodeFactory.load(environment));
     }
 
     /**
@@ -65,6 +71,10 @@ class ConfigResolutionStrategy {
 
     void defaults(ConfigNode defaults) {
         this.defaults = defaults;
+    }
+
+    void withProperty(String name, String value) {
+        this.propertiesNode.recursiveChild(name, value);
     }
 
     /**
@@ -124,12 +134,13 @@ class ConfigResolutionStrategy {
         return nodes().flatMap(e -> e.allKeysRecursively());
     }
 
-    Set<SimpleKey> simpleSubkeysOf(ConfigKey prefix) {
+    List<SimpleKey> simpleSubkeysOf(ConfigKey prefix) {
         return nodes()
                 .map(e -> e.descendant(prefix))
                 .filter(Objects::nonNull)
                 .flatMap(e -> e.childrenKeys().stream())
-                .collect(Collectors.toSet());
+                .distinct()
+                .collect(Collectors.toList());
     }
 
     boolean hasKeyOrSubkeys(ConfigKey prefix) {
@@ -148,5 +159,6 @@ class ConfigResolutionStrategy {
 
     private ConfigNode defaults;
 
+    private ConfigNode propertiesNode;
 
 }

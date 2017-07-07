@@ -15,42 +15,31 @@
  */
 package org.wildfly.swarm.monitor.runtime;
 
-import javax.enterprise.context.ApplicationScoped;
+import javax.inject.Inject;
 
 import org.jboss.shrinkwrap.api.Archive;
-import org.jboss.shrinkwrap.api.ArchivePath;
-import org.jboss.shrinkwrap.api.ArchivePaths;
-import org.jboss.shrinkwrap.api.asset.Asset;
-import org.jboss.shrinkwrap.api.asset.ClassAsset;
-import org.jboss.shrinkwrap.impl.base.asset.AssetUtil;
-import org.jboss.shrinkwrap.impl.base.path.BasicPath;
-import org.wildfly.swarm.spi.api.ArchivePreparer;
-import org.wildfly.swarm.spi.api.JARArchive;
+import org.wildfly.swarm.SwarmInfo;
+import org.wildfly.swarm.spi.api.DeploymentProcessor;
+import org.wildfly.swarm.spi.runtime.annotations.DeploymentScoped;
+import org.wildfly.swarm.undertow.WARArchive;
 
 /**
  * @author Ken Finnigan
  */
-@ApplicationScoped
-public class InstallMonitorFilter implements ArchivePreparer {
+@DeploymentScoped
+public class InstallMonitorFilter implements DeploymentProcessor {
 
-    //private static String HEALTH_RESPONSE_FILTER_CLASS_NAME = "org.wildfly.swarm.monitor.runtime.HealthResponseFilter";
-
-    /**
-     * Path to the WEB-INF inside of the Archive.
-     */
-    private static final ArchivePath PATH_WEB_INF = ArchivePaths.create("WEB-INF");
-
-    /**
-     * Path to the classes inside of the Archive.
-     */
-    private static final ArchivePath PATH_CLASSES = ArchivePaths.create(PATH_WEB_INF, "classes");
+    @Inject
+    public InstallMonitorFilter(Archive archive) {
+        this.archive = archive;
+    }
 
     @Override
-    public void prepareArchive(Archive<?> archive) {
-        JARArchive jarArchive = archive.as(JARArchive.class);
-
-        Asset resource = new ClassAsset(HealthResponseFilter.class);
-        ArchivePath location = new BasicPath(PATH_CLASSES, AssetUtil.getFullPathForClassResource(HealthResponseFilter.class));
-        jarArchive.add(resource, location);
+    public void process() throws Exception {
+        WARArchive warArchive = archive.as(WARArchive.class);
+        warArchive.addDependency("org.wildfly.swarm:health-api:jar:" + SwarmInfo.VERSION);
+        warArchive.findWebXmlAsset().setContextParam("resteasy.scan", "true");
     }
+
+    private final Archive archive;
 }

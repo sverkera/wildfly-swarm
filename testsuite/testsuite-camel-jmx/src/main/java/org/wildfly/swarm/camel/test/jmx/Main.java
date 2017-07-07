@@ -22,7 +22,7 @@ package org.wildfly.swarm.camel.test.jmx;
 
 import org.apache.camel.builder.RouteBuilder;
 import org.wildfly.swarm.Swarm;
-import org.wildfly.swarm.camel.core.CamelCoreFraction;
+import org.wildfly.swarm.camel.core.CamelFraction;
 
 /**
  * Deploys a test which monitors an JMX attribute of a route.
@@ -32,11 +32,13 @@ import org.wildfly.swarm.camel.core.CamelCoreFraction;
  */
 public class Main {
 
+    private static Swarm swarm;
+
     protected Main() {
     }
 
     public static void main(String... args) throws Exception {
-        Swarm swarm = new Swarm(args).fraction(new CamelCoreFraction().addRouteBuilder(new RouteBuilder() {
+        swarm = new Swarm(args).fraction(new CamelFraction().addRouteBuilder(new RouteBuilder() {
             @Override
             public void configure() throws Exception {
                 from("direct:start")
@@ -46,4 +48,9 @@ public class Main {
 
         swarm.start().deploy();
     }
+
+    public static void stopMain() throws Exception {
+        swarm.stop();
+    }
+
 }

@@ -51,6 +51,7 @@ import org.jboss.shrinkwrap.api.asset.ByteArrayAsset;
 import org.jboss.shrinkwrap.api.asset.FileAsset;
 import org.jboss.shrinkwrap.api.asset.StringAsset;
 import org.jboss.shrinkwrap.api.exporter.ZipExporter;
+import org.jboss.shrinkwrap.api.importer.ExplodedImporter;
 import org.jboss.shrinkwrap.api.importer.ZipImporter;
 import org.jboss.shrinkwrap.api.spec.JavaArchive;
 import org.jboss.shrinkwrap.impl.base.io.IOUtil;
@@ -69,7 +70,11 @@ import org.wildfly.swarm.spi.meta.SimpleLogger;
  */
 public class BuildTool {
 
-    public enum FractionDetectionMode { when_missing, force, never }
+    public enum FractionDetectionMode {
+        when_missing,
+        force,
+        never
+    }
 
     public BuildTool(ArtifactResolvingHelper resolvingHelper) {
         this.archive = ShrinkWrap.create(JavaArchive.class);
@@ -106,7 +111,7 @@ public class BuildTool {
     public BuildTool projectArtifact(String groupId, String artifactId, String version,
                                      String packaging, File file, String artifactName) {
         this.projectAsset = new ArtifactAsset(new ArtifactSpec(null, groupId, artifactId, version, packaging, null, file),
-                                              artifactName);
+                artifactName);
         this.dependencyManager.setProjectAsset(this.projectAsset);
         return this;
     }
@@ -170,10 +175,16 @@ public class BuildTool {
         return this;
     }
 
+    public BuildTool uberjarResourcesDirectory(Path dir) {
+        this.uberjarResourcesDirectory = dir;
+        return this;
+    }
+
     public File build(String baseName, Path dir) throws Exception {
         build();
         return createJar(baseName, dir);
     }
+
 
     public void repackageWar(File file) throws IOException {
         this.log.info("Repackaging .war: " + file);
@@ -224,10 +235,27 @@ public class BuildTool {
         addJarManifest();
         addWildFlySwarmApplicationManifest();
         addAdditionalModules();
-        addProjectAsset((ResolvedDependencies) this.dependencyManager);
-        populateUberJarMavenRepository((ResolvedDependencies) this.dependencyManager);
+        addProjectAsset(this.dependencyManager);
+        populateUberJarMavenRepository(this.dependencyManager);
+        addUberjarResources();
 
         return this.archive;
+    }
+
+    private void addUberjarResources() {
+        if (this.uberjarResourcesDirectory == null) {
+            return;
+        }
+
+        if (!Files.exists(this.uberjarResourcesDirectory)) {
+            return;
+        }
+
+        if (!Files.isDirectory(this.uberjarResourcesDirectory)) {
+            return;
+        }
+
+        this.archive.as(ExplodedImporter.class).importDirectory(this.uberjarResourcesDirectory.toFile());
     }
 
     private boolean bootstrapJarShadesJBossModules(File artifactFile) throws IOException {
@@ -245,6 +273,7 @@ public class BuildTool {
         return jbossModulesFound;
     }
 
+    @SuppressWarnings("unchecked")
     private void expandArtifact(File artifactFile) throws IOException {
         try {
             ZipFile zipFile = new ZipFile(artifactFile);
@@ -270,6 +299,7 @@ public class BuildTool {
         this.dependencyManager.analyzeDependencies(autodetect, declaredDependencies);
     }
 
+    @SuppressWarnings("UnusedParameters")
     private void addProjectAsset(ResolvedDependencies resolvedDependencies) {
         if (this.hollow) {
             return;
@@ -289,22 +319,22 @@ public class BuildTool {
 
         //don't overwrite fractions added by the user
         detectedFractions.removeAll(this.fractions.stream()
-                                            .map(ArtifactSpec::toFractionDescriptor)
-                                            .collect(Collectors.toSet()));
+                .map(ArtifactSpec::toFractionDescriptor)
+                .collect(Collectors.toSet()));
 
         this.log.info(String.format("Detected %sfractions: %s",
-                                    this.fractions.isEmpty() ? "" : "additional ",
-                                    String.join(", ",
-                                                detectedFractions.stream()
-                                                        .map(FractionDescriptor::av)
-                                                        .sorted()
-                                                        .collect(Collectors.toList()))));
+                this.fractions.isEmpty() ? "" : "additional ",
+                String.join(", ",
+                        detectedFractions.stream()
+                                .map(FractionDescriptor::av)
+                                .sorted()
+                                .collect(Collectors.toList()))));
         detectedFractions.stream()
                 .map(ArtifactSpec::fromFractionDescriptor)
                 .forEach(this::fraction);
     }
 
-    static String strippedSwarmGav(MavenArtifactDescriptor desc) {
+    private static String strippedSwarmGav(MavenArtifactDescriptor desc) {
         if (desc.groupId().equals(DependencyManager.WILDFLY_SWARM_GROUP_ID)) {
             return String.format("%s:%s", desc.artifactId(), desc.version());
         }
@@ -323,10 +353,10 @@ public class BuildTool {
                 .forEach(allFractions::add);
 
         this.log.info("Adding fractions: " +
-                              String.join(", ", allFractions.stream()
-                                      .map(BuildTool::strippedSwarmGav)
-                                      .sorted()
-                                      .collect(Collectors.toList())));
+                String.join(", ", allFractions.stream()
+                        .map(BuildTool::strippedSwarmGav)
+                        .sorted()
+                        .collect(Collectors.toList())));
 
         allFractions.forEach(f -> this.declaredDependencies.add(f));
         analyzeDependencies(true);
@@ -334,7 +364,7 @@ public class BuildTool {
 
     private void addWildflySwarmBootstrapJar() throws Exception {
 
-        ResolvedDependencies resolvedDependencies = (ResolvedDependencies) this.dependencyManager;
+        ResolvedDependencies resolvedDependencies = this.dependencyManager;
 
         ArtifactSpec artifact = resolvedDependencies.findWildFlySwarmBootstrapJar();
 
@@ -454,7 +484,7 @@ public class BuildTool {
 
     private static synchronized void find(File moduleDir, DependencyManager dependencyManager) throws IOException {
         Files.find(moduleDir.toPath(), 20,
-                   (p, __) -> p.getFileName().toString().equals("module.xml"))
+                (p, __) -> p.getFileName().toString().equals("module.xml"))
                 .forEach(dependencyManager::addAdditionalModule);
     }
 
@@ -478,7 +508,7 @@ public class BuildTool {
 
             if (unresolved || !exploded) {
                 toBeResolved.add(dependency);
-            } else if (!unresolved) {
+            } else {
                 alreadyResolved.add(dependency);
             }
         }
@@ -492,8 +522,8 @@ public class BuildTool {
         }
 
         System.out.println("Resolving " + toBeResolved.size() + " out of " +
-                                   (resolvedDependencies.getModuleDependencies().size() +
-                                           resolvedDependencies.getDependencies().size()) + " artifacts");
+                (resolvedDependencies.getModuleDependencies().size() +
+                        resolvedDependencies.getDependencies().size()) + " artifacts");
 
         if (toBeResolved.size() > 0) {
             Collection<ArtifactSpec> newResolved = resolver.resolveAllArtifactsNonTransitively(toBeResolved);
@@ -510,18 +540,18 @@ public class BuildTool {
 
         toBeResolved.addAll(
                 resolvedDependencies.getDependencies().stream()
-                        .filter(a -> a.isResolved() == false)
+                        .filter(a -> !a.isResolved())
                         .collect(Collectors.toList())
         );
         toBeResolved.addAll(
                 resolvedDependencies.getModuleDependencies().stream()
-                        .filter(a -> a.isResolved() == false)
+                        .filter(a -> !a.isResolved())
                         .collect(Collectors.toList())
         );
 
         System.out.println("Resolving " + toBeResolved.size() + " out of " +
-                                   (resolvedDependencies.getModuleDependencies().size() +
-                                           resolvedDependencies.getDependencies().size()) + " artifacts");
+                (resolvedDependencies.getModuleDependencies().size() +
+                        resolvedDependencies.getDependencies().size()) + " artifacts");
 
         if (toBeResolved.size() > 0) {
             resolver.resolveAllArtifactsNonTransitively(toBeResolved);
@@ -544,6 +574,8 @@ public class BuildTool {
     private final JavaArchive archive;
 
     private final Set<String> resourceDirectories = new HashSet<>();
+
+    private Path uberjarResourcesDirectory = null;
 
     private String mainClass;
 
@@ -571,7 +603,7 @@ public class BuildTool {
 
     private final DefaultArtifactResolver resolver;
 
-    public static final SimpleLogger STD_LOGGER = new SimpleLogger() {
+    private static final SimpleLogger STD_LOGGER = new SimpleLogger() {
         @Override
         public void info(String msg) {
             System.out.println(msg);

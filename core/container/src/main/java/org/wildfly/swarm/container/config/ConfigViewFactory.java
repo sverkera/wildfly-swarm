@@ -1,12 +1,12 @@
 /**
  * Copyright 2015-2016 Red Hat, Inc, and individual contributors.
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,7 +27,13 @@ import java.util.Properties;
 import javax.enterprise.inject.Vetoed;
 
 import org.jboss.modules.ModuleLoadException;
+import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.nodes.NodeId;
+import org.yaml.snakeyaml.nodes.Tag;
+import org.yaml.snakeyaml.representer.Representer;
+import org.yaml.snakeyaml.resolver.Resolver;
 
 /**
  * @author Heiko Braun
@@ -41,24 +47,29 @@ public class ConfigViewFactory {
     private final ConfigViewImpl configView;
 
     public static ConfigViewFactory defaultFactory() throws ModuleLoadException {
-        return defaultFactory(null);
+        return defaultFactory(null, System.getenv());
     }
 
-    public static ConfigViewFactory defaultFactory(Properties properties) throws ModuleLoadException {
+    public static ConfigViewFactory defaultFactory(Properties properties, Map<String, String> environment) throws ModuleLoadException {
         return new ConfigViewFactory(
                 properties,
+                environment,
                 new FilesystemConfigLocator(),
                 ClassLoaderConfigLocator.system(),
                 ClassLoaderConfigLocator.forApplication()
         );
     }
 
-    private ConfigViewFactory(Properties properties) {
-        this.configView = new ConfigViewImpl().withProperties(properties);
+    public ConfigViewFactory(Properties properties) {
+        this.configView = new ConfigViewImpl().withProperties(properties).withEnvironment(System.getenv());
     }
 
-    public ConfigViewFactory(Properties properties, ConfigLocator... locators) {
-        this(properties);
+    public ConfigViewFactory(Properties properties, Map<String, String> environment) {
+        this.configView = new ConfigViewImpl().withProperties(properties).withEnvironment(environment);
+    }
+
+    public ConfigViewFactory(Properties properties, Map<String, String> environment, ConfigLocator... locators) {
+        this(properties, environment);
         for (ConfigLocator locator : locators) {
             addLocator(locator);
         }
@@ -69,22 +80,22 @@ public class ConfigViewFactory {
     }
 
     public ConfigViewFactory load(String profileName) {
+        this.profiles.add(profileName);
         this.locators
                 .stream()
                 .flatMap(locator -> {
                     try {
                         return locator.locate(profileName);
                     } catch (IOException e) {
-                        e.printStackTrace();
+                        throw new RuntimeException(e);
                     }
-                    return null;
                 })
                 .filter(Objects::nonNull)
                 .forEach(url -> {
                     try {
                         load(profileName, url);
                     } catch (IOException e) {
-                        e.printStackTrace();
+                        throw new RuntimeException(e);
                     }
                 });
         return this;
@@ -93,7 +104,7 @@ public class ConfigViewFactory {
     public void load(String profileName, URL url) throws IOException {
         if (url.getPath().endsWith(".properties")) {
             loadProperties(profileName, url);
-        } else if (url.getPath().endsWith(".yml")) {
+        } else if (url.getPath().endsWith(".yml") || url.getPath().endsWith(".yaml")) {
             loadYaml(profileName, url);
         }
     }
@@ -107,7 +118,7 @@ public class ConfigViewFactory {
     }
 
     protected void loadYaml(String profileName, URL url) throws IOException {
-        if (profileName.equals(STAGES) || url.getPath().endsWith("-stages.yml")) {
+        if (profileName.equals(STAGES) || url.getPath().endsWith("-stages.yml") || url.getPath().endsWith("-stages.yaml")) {
             loadProjectStages(url);
             return;
         }
@@ -120,6 +131,10 @@ public class ConfigViewFactory {
     }
 
     public ConfigViewImpl get(boolean activate) {
+        for (String profile : this.profiles) {
+            this.configView.withProfile(profile);
+        }
+
         this.configView.activate();
         return this.configView;
     }
@@ -128,8 +143,9 @@ public class ConfigViewFactory {
         loadProjectStages(url.openStream());
     }
 
+    @SuppressWarnings("unchecked")
     private void loadProjectStages(InputStream inputStream) {
-        Yaml yaml = new Yaml();
+        Yaml yaml = newYaml();
         Iterable<Object> docs = yaml.loadAll(inputStream);
 
         for (Object item : docs) {
@@ -154,20 +170,57 @@ public class ConfigViewFactory {
         loadYamlProjectConfig(name, url.openStream());
     }
 
+    @SuppressWarnings("unchecked")
     private void loadYamlProjectConfig(String name, InputStream inputStream) {
-        Yaml yaml = new Yaml();
-        Map<String, ?> doc = (Map<String, ?>) yaml.load(inputStream);
+        Map<String, ?> doc = loadYaml(inputStream);
 
         ConfigNode node = MapConfigNodeFactory.load(doc);
         this.configView.register(name, node);
         this.configView.withProfile(name);
     }
 
+    static Map<String, ?> loadYaml(InputStream input) {
+        Yaml yaml = newYaml();
+        return (Map<String, ?>) yaml.load(input);
+    }
+
+    private static Yaml newYaml() {
+        return new Yaml(new Constructor(),
+                        new Representer(),
+                        new DumperOptions(),
+                        new Resolver() {
+                            @Override
+                            public Tag resolve(NodeId kind, String value, boolean implicit) {
+                                if (value != null) {
+                                    if (value.equalsIgnoreCase("on") ||
+                                            value.equalsIgnoreCase("off") ||
+                                            value.equalsIgnoreCase("yes") ||
+                                            value.equalsIgnoreCase("no")) {
+                                        return Tag.STR;
+                                    }
+                                }
+                                return super.resolve(kind, value, implicit);
+                            }
+                        });
+    }
+
+
+    public void withProfile(String name) {
+        this.configView.withProfile(name);
+    }
+
+    public void withProperty(String name, String value) {
+        this.configView.withProperty(name, value);
+    }
+
     private List<ConfigLocator> locators = new ArrayList<>();
+
+    private List<String> profiles = new ArrayList<>();
 
     private static final String PROJECT_PREFIX = "project";
 
     private static final String STAGE = "stage";
 
     private static final String DEFAULT = "default";
+
 }

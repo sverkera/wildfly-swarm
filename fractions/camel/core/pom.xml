@@ -26,7 +26,7 @@
   <parent>
     <groupId>org.wildfly.swarm</groupId>
     <artifactId>camel</artifactId>
-    <version>2017.4.0-SNAPSHOT</version>
+    <version>2017.8.0-SNAPSHOT</version>
   </parent>
 
   <name>Camel Core</name>
@@ -57,6 +57,11 @@
     </dependency>
     <dependency>
       <groupId>org.wildfly.swarm</groupId>
+      <artifactId>spi</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.wildfly.swarm</groupId>
       <artifactId>ee</artifactId>
     </dependency>
     <dependency>
@@ -72,11 +77,6 @@
     <dependency>
       <groupId>javax.enterprise</groupId>
       <artifactId>cdi-api</artifactId>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.wildfly.swarm</groupId>
-      <artifactId>spi</artifactId>
       <scope>provided</scope>
     </dependency>
     <dependency>

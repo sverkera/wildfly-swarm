@@ -44,12 +44,11 @@ public class KeycloakServerFraction extends KeycloakServer<KeycloakServerFractio
 
     @Override
     public Fraction applyDefaults() {
-        System.err.println("Applying defaults");
         webContext(DEFAULT_WEB_CONTEXT);
         masterRealmName(DEFAULT_REALM_NAME);
         scheduledTaskInterval(900L);
 
-        spi("eventStore", (eventStore) -> {
+        spi("eventsStore", (eventStore) -> {
             eventStore.defaultProvider("jpa");
             eventStore.provider("jpa", (provider) -> {
                 provider.enabled(true);

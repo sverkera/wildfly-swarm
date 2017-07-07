@@ -28,11 +28,10 @@ import java.util.Set;
  */
 public class SwaggerConfig {
 
-    public SwaggerConfig(InputStream input) {
-        BufferedReader in = new BufferedReader(new InputStreamReader(input));
+    public SwaggerConfig(InputStream input) throws IOException {
         String line;
 
-        try {
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(input))) {
             while ((line = in.readLine()) != null) {
                 int separatorIndex = line.indexOf(":");
                 Key key = Key.valueOf(line.substring(0, separatorIndex).toUpperCase());
@@ -41,21 +40,19 @@ public class SwaggerConfig {
                 // SCHEMES is meant to be a String[]
                 // everything else is a String
                 if (key == Key.SCHEMES || key == Key.PACKAGES) {
-                    value = ((String) value).split(",");
+                    String[] parts = ((String) value).split(",");
+                    for (int i = 0; i < parts.length; ++i) {
+                        parts[i] = parts[i].trim();
+                    }
+                    value = parts;
+                } else {
+                    value = value.toString().trim();
+
                 }
                 put(key, value);
             }
         } catch (IllegalArgumentException ia) {
             throw new RuntimeException("Invalid key: " + ia.getMessage());
-        } catch (IOException e) {
-            System.err.println("ERROR reading SwaggerConfigurationAsset" + e);
-            e.printStackTrace();
-        } finally {
-            try {
-                in.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
         }
     }
 

@@ -20,7 +20,6 @@ import java.io.File;
 import java.io.InputStreamReader;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,6 +41,8 @@ import org.jboss.shrinkwrap.api.Archive;
 import org.jboss.shrinkwrap.api.Node;
 import org.jboss.shrinkwrap.api.asset.EmptyAsset;
 import org.jboss.shrinkwrap.api.container.ClassContainer;
+import org.jboss.shrinkwrap.api.container.LibraryContainer;
+import org.jboss.shrinkwrap.api.container.ManifestContainer;
 import org.jboss.shrinkwrap.api.exporter.ZipExporter;
 import org.jboss.shrinkwrap.api.spec.JavaArchive;
 import org.jboss.shrinkwrap.api.spec.WebArchive;
@@ -51,9 +52,11 @@ import org.wildfly.swarm.arquillian.CreateSwarm;
 import org.wildfly.swarm.arquillian.adapter.resources.ContextRoot;
 import org.wildfly.swarm.arquillian.resolver.ShrinkwrapArtifactResolvingHelper;
 import org.wildfly.swarm.bootstrap.util.BootstrapProperties;
+import org.wildfly.swarm.bootstrap.util.TempFileManager;
 import org.wildfly.swarm.internal.FileSystemLayout;
 import org.wildfly.swarm.spi.api.DependenciesContainer;
 import org.wildfly.swarm.spi.api.JARArchive;
+import org.wildfly.swarm.spi.api.MarkerContainer;
 import org.wildfly.swarm.spi.api.SwarmProperties;
 import org.wildfly.swarm.spi.api.internal.SwarmInternalProperties;
 import org.wildfly.swarm.tools.ArtifactSpec;
@@ -195,15 +198,21 @@ public class UberjarSimpleContainer implements SimpleContainer {
         // project dependencies
         FileSystemLayout fsLayout = FileSystemLayout.create();
         DeclaredDependencies declaredDependencies =
-                DependencyDeclarationFactory.newInstance(fsLayout).create(resolvingHelper);
+                DependencyDeclarationFactory.newInstance(fsLayout).create(fsLayout, resolvingHelper);
         tool.declaredDependencies(declaredDependencies);
 
         // check for "org.wildfly.swarm.allDependencies" flag
         // see DependenciesContainer#addAllDependencies()
         if (archive instanceof DependenciesContainer) {
-            DependenciesContainer depContainer = (DependenciesContainer) archive;
-            if (depContainer.hasMarker("org.wildfly.swarm.allDependencies")) {
+            DependenciesContainer<?> depContainer =  (DependenciesContainer<?>) archive;
+            if (depContainer.hasMarker(DependenciesContainer.ALL_DEPENDENCIES_MARKER)) {
                 munge(depContainer, declaredDependencies);
+            }
+        } else if (archive instanceof WebArchive) {
+            // Handle the default deployment of type WAR
+            WebArchive webArchive = (WebArchive) archive;
+            if (MarkerContainer.hasMarker(webArchive, DependenciesContainer.ALL_DEPENDENCIES_MARKER)) {
+                munge(webArchive, declaredDependencies);
             }
         }
 
@@ -270,13 +279,17 @@ public class UberjarSimpleContainer implements SimpleContainer {
         }
 
         executor.withProperty("java.net.preferIPv4Stack", "true");
+
+        File processFile = File.createTempFile("mainprocessfile", null);
+        processFile.deleteOnExit();
+
+        executor.withProcessFile(processFile);
+
         executor.withJVMArguments(getJavaVmArgumentsList());
         executor.withExecutableJar(executable.toPath());
 
-        File workingDirectory = Files.createTempDirectory("arquillian").toFile();
-        workingDirectory.deleteOnExit();
+        File workingDirectory = TempFileManager.INSTANCE.newTempDirectory("arquillian", null);
         executor.withWorkingDirectory(workingDirectory.toPath());
-
 
         this.process = executor.execute();
         this.process.getOutputStream().close();
@@ -291,15 +304,14 @@ public class UberjarSimpleContainer implements SimpleContainer {
         }
     }
 
-    private void munge(DependenciesContainer depContainer, DeclaredDependencies declaredDependencies) {
+    private <C extends LibraryContainer<?> & ManifestContainer<?>> void munge(C container, DeclaredDependencies declaredDependencies) {
 
         for (ArtifactSpec artifact : declaredDependencies.getExplicitDependencies()) { // [hb] TODO: this should actually be transient deps
             assert artifact.file != null : "artifact.file cannot be null at this point: " + artifact;
-            depContainer.addAsLibraries(artifact.file);
+            container.addAsLibrary(artifact.file);
         }
-
         try {
-            depContainer.addMarker("org.wildfly.swarm.allDependencies.added");
+            MarkerContainer.addMarker(container, "org.wildfly.swarm.allDependencies.added");
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -308,7 +320,7 @@ public class UberjarSimpleContainer implements SimpleContainer {
     private List<Class<?>> determineTypes(Class<?> testClass) {
         List<Class<?>> types = new ArrayList<>();
 
-        Class clazz = testClass;
+        Class<?> clazz = testClass;
 
         while (clazz != null) {
             types.add(clazz);

@@ -30,9 +30,8 @@ import javax.inject.Singleton;
 import org.jboss.weld.literal.DefaultLiteral;
 import org.wildfly.swarm.bootstrap.performance.Performance;
 import org.wildfly.swarm.container.runtime.ConfigurableManager;
-import org.wildfly.swarm.spi.api.ArchiveMetadataProcessor;
-import org.wildfly.swarm.spi.api.ArchivePreparer;
 import org.wildfly.swarm.spi.api.Customizer;
+import org.wildfly.swarm.spi.api.DeploymentProcessor;
 import org.wildfly.swarm.spi.api.annotations.Configurable;
 import org.wildfly.swarm.spi.api.cdi.CommonBean;
 import org.wildfly.swarm.spi.api.cdi.CommonBeanBuilder;
@@ -47,23 +46,23 @@ public class ConfigurableExtension implements Extension {
     // Short-cut for-sure expect these to be Configurable owners.
     private static final Set<Class<?>> APPLICABLE_CLASSES = new HashSet<Class<?>>() {{
         add(Customizer.class);
-        add(ArchivePreparer.class);
-        add(ArchiveMetadataProcessor.class);
+        add(DeploymentProcessor.class);
     }};
 
     public ConfigurableExtension(ConfigurableManager configurableManager) {
         this.configurableManager = configurableManager;
     }
 
-    void processInjectionTarget(@Observes ProcessInjectionTarget pit, BeanManager beanManager) throws Exception {
+    @SuppressWarnings("unused")
+    <T> void processInjectionTarget(@Observes ProcessInjectionTarget<T> pit, BeanManager beanManager) throws Exception {
         try (AutoCloseable handle = Performance.accumulate("ConfigurationExtension.processInjectionTarget")) {
             if (isApplicable(pit.getAnnotatedType())) {
-                pit.setInjectionTarget(new ConfigurableInjectionTarget<>(pit.getInjectionTarget(), this.configurableManager));
+                pit.setInjectionTarget(new ConfigurableInjectionTarget<T>(pit.getInjectionTarget(), this.configurableManager));
             }
         }
     }
 
-    static <T> boolean isApplicable(AnnotatedType<T> at) {
+    private static <T> boolean isApplicable(AnnotatedType<T> at) {
         if (isApplicable(at.getJavaClass())) {
             return true;
         }
@@ -79,7 +78,7 @@ public class ConfigurableExtension implements Extension {
         return false;
     }
 
-    static boolean isApplicable(Class<?> cls) {
+    private static boolean isApplicable(Class<?> cls) {
         for (Class<?> each : APPLICABLE_CLASSES) {
             if (each.isAssignableFrom(cls)) {
                 return true;
@@ -89,10 +88,11 @@ public class ConfigurableExtension implements Extension {
         return false;
     }
 
+    @SuppressWarnings({"unused"})
     void afterBeanDiscovery(@Observes AfterBeanDiscovery abd) throws Exception {
         try (AutoCloseable handle = Performance.time("ConfigurationExtension.afterBeanDiscovery")) {
-            CommonBean<ConfigurableManager> configurableManagerBean = CommonBeanBuilder.newBuilder()
-                    .beanClass(ConfigurableExtension.class)
+            CommonBean<ConfigurableManager> configurableManagerBean = CommonBeanBuilder.newBuilder(ConfigurableManager.class)
+                    .beanClass(ConfigurableManager.class)
                     .scope(Singleton.class)
                     .addQualifier(DefaultLiteral.INSTANCE)
                     .createSupplier(() -> configurableManager)

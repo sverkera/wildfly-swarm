@@ -16,6 +16,7 @@
 package org.wildfly.swarm.topology.runtime;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -30,6 +31,7 @@ import org.jboss.msc.service.ServiceTarget;
 import org.wildfly.swarm.topology.AdvertisementHandle;
 import org.wildfly.swarm.topology.Topology;
 import org.wildfly.swarm.topology.TopologyListener;
+import org.wildfly.swarm.topology.TopologyMessages;
 import org.wildfly.swarm.topology.deployment.RegistrationAdvertiser;
 
 /**
@@ -52,9 +54,11 @@ public class TopologyManager implements Topology {
     }
 
     @Override
-    public AdvertisementHandle advertise(String name) {
-        ServiceController<Void> httpAdvert = RegistrationAdvertiser.install(this.serviceTarget, name, "http");
-        ServiceController<Void> httpsAdvert = RegistrationAdvertiser.install(this.serviceTarget, name, "https");
+    public AdvertisementHandle advertise(String name, String... tags) {
+        ServiceController<Void> httpAdvert =
+                RegistrationAdvertiser.install(this.serviceTarget, name, "http", Arrays.asList(tags));
+        ServiceController<Void> httpsAdvert =
+                RegistrationAdvertiser.install(this.serviceTarget, name, "https", Arrays.asList(tags));
         return new AdvertisementHandleImpl(httpAdvert, httpsAdvert);
     }
 
@@ -139,7 +143,7 @@ public class TopologyManager implements Topology {
                 try {
                     e.onChange(this);
                 } catch (Throwable t) {
-                    t.printStackTrace();
+                    TopologyMessages.MESSAGES.errorFiringEvent(e.getClass().getName(), t);
                     removeListener(e);
                 }
             });

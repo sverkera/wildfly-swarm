@@ -21,14 +21,11 @@ import java.util.Map;
 import java.util.logging.Logger;
 
 import org.jboss.shrinkwrap.api.Archive;
-import org.jboss.shrinkwrap.api.ArchiveEvent;
-import org.jboss.shrinkwrap.api.ArchiveEventHandler;
 import org.jboss.shrinkwrap.api.ArchivePath;
 import org.jboss.shrinkwrap.api.ArchivePaths;
 import org.jboss.shrinkwrap.api.Node;
 import org.jboss.shrinkwrap.api.asset.ArchiveAsset;
 import org.jboss.shrinkwrap.api.asset.Asset;
-import org.jboss.shrinkwrap.api.asset.ByteArrayAsset;
 import org.jboss.shrinkwrap.impl.base.container.WebContainerBase;
 import org.jboss.shrinkwrap.impl.base.spec.WebArchiveImpl;
 import org.objectweb.asm.ClassReader;
@@ -49,10 +46,9 @@ public class JAXRSArchiveImpl extends WebContainerBase<JAXRSArchive> implements 
      *
      * @param delegate The storage backing.
      */
-    public JAXRSArchiveImpl(Archive<?> delegate) {
+    public JAXRSArchiveImpl(Archive<?> delegate) throws IOException {
         super(JAXRSArchive.class, delegate);
 
-        addGeneratedApplication();
         addFaviconExceptionHandler();
     }
 
@@ -60,59 +56,6 @@ public class JAXRSArchiveImpl extends WebContainerBase<JAXRSArchive> implements 
     public JAXRSArchive addResource(Class<?> resource) {
         addClass(resource);
         return covarientReturn();
-    }
-
-    private static boolean hasApplicationPathAnnotation(ArchivePath path, Asset asset) {
-        if (asset == null) {
-            return false;
-        }
-
-        if (asset instanceof ArchiveAsset) {
-            return hasApplicationPathAnnotation(((ArchiveAsset) asset).getArchive());
-        }
-
-        if (!path.get().endsWith(".class")) {
-            return false;
-        }
-
-        try (InputStream in = asset.openStream()) {
-            ClassReader reader = new ClassReader(in);
-            ApplicationPathAnnotationSeekingClassVisitor visitor = new ApplicationPathAnnotationSeekingClassVisitor();
-            reader.accept(visitor, 0);
-            return visitor.isFound();
-        } catch (IOException ignored) {
-        }
-
-        return false;
-    }
-
-    private static boolean hasApplicationPathAnnotation(Archive<?> archive) {
-        Map<ArchivePath, Node> content = archive.getContent();
-        for (Map.Entry<ArchivePath, Node> entry : content.entrySet()) {
-            Node node = entry.getValue();
-            Asset asset = node.getAsset();
-            if (hasApplicationPathAnnotation(node.getPath(), asset)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    protected void addGeneratedApplication() {
-        if (!hasApplicationPathAnnotation(getArchive())) {
-            String name = "org.wildfly.swarm.generated.WildFlySwarmDefaultJAXRSApplication";
-            String path = "WEB-INF/classes/" + name.replace('.', '/') + ".class";
-
-            byte[] generatedApp;
-            try {
-                generatedApp = ApplicationFactory2.create(name, "/");
-                add(new ByteArrayAsset(generatedApp), path);
-                addHandlers(new ApplicationHandler(this, path));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
     }
 
     /**
@@ -262,24 +205,4 @@ public class JAXRSArchiveImpl extends WebContainerBase<JAXRSArchive> implements 
      */
     private static final ArchivePath PATH_SERVICE_PROVIDERS = ArchivePaths.create(PATH_CLASSES, "META-INF/services");
 
-
-    public static class ApplicationHandler implements ArchiveEventHandler {
-
-        public ApplicationHandler(JAXRSArchive archive, String path) {
-            this.archive = archive;
-            this.path = path;
-        }
-
-        @Override
-        public void handle(ArchiveEvent event) {
-            Asset asset = event.getAsset();
-            if (hasApplicationPathAnnotation(event.getPath(), asset)) {
-                this.archive.delete(this.path);
-            }
-        }
-
-        private final JAXRSArchive archive;
-
-        private final String path;
-    }
 }

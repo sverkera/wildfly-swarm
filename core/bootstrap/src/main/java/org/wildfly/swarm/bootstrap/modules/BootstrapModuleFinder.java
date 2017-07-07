@@ -33,7 +33,6 @@ import org.jboss.modules.ResourceLoaderSpec;
 import org.jboss.modules.ResourceLoaders;
 import org.jboss.modules.filter.PathFilter;
 import org.jboss.modules.filter.PathFilters;
-import org.jboss.modules.maven.ArtifactCoordinates;
 import org.wildfly.swarm.bootstrap.env.ApplicationEnvironment;
 import org.wildfly.swarm.bootstrap.logging.BootstrapLogger;
 import org.wildfly.swarm.bootstrap.performance.Performance;
@@ -62,16 +61,8 @@ public class BootstrapModuleFinder extends AbstractSingleModuleFinder {
 
             ApplicationEnvironment env = ApplicationEnvironment.get();
 
-            env.bootstrapArtifacts()
-                    .forEach((dep) -> {
-                        String[] parts = dep.split(":");
-                        ArtifactCoordinates coords = null;
-
-                        if (parts.length == 4) {
-                            coords = new ArtifactCoordinates(parts[0], parts[1], parts[3]);
-                        } else if (parts.length == 5) {
-                            coords = new ArtifactCoordinates(parts[0], parts[1], parts[3], parts[4]);
-                        }
+            env.bootstrapArtifactsAsCoordinates()
+                    .forEach((coords) -> {
                         try {
                             File artifact = MavenResolvers.get().resolveJarArtifact(coords);
                             if (artifact == null) {
@@ -87,16 +78,13 @@ public class BootstrapModuleFinder extends AbstractSingleModuleFinder {
                                     )
                             );
                         } catch (IOException e) {
-                            e.printStackTrace();
+                            throw new RuntimeException(e);
                         }
-
                     });
 
             builder.addDependency(DependencySpec.createLocalDependencySpec());
             builder.addDependency(DependencySpec.createModuleDependencySpec(ModuleIdentifier.create("org.jboss.modules")));
-            builder.addDependency(DependencySpec.createModuleDependencySpec(ModuleIdentifier.create("org.jboss.msc")));
             builder.addDependency(DependencySpec.createModuleDependencySpec(ModuleIdentifier.create("org.jboss.shrinkwrap")));
-            builder.addDependency(DependencySpec.createModuleDependencySpec(ModuleIdentifier.create("javax.api")));
             builder.addDependency(DependencySpec.createModuleDependencySpec(ModuleIdentifier.create("org.yaml.snakeyaml")));
 
             HashSet<String> paths = new HashSet<>();

@@ -10,7 +10,7 @@
   <parent>
     <groupId>org.wildfly.swarm</groupId>
     <artifactId>wildfly-swarm</artifactId>
-    <version>2017.4.0-SNAPSHOT</version>
+    <version>2017.8.0-SNAPSHOT</version>
     <relativePath>../</relativePath>
   </parent>
 
@@ -25,6 +25,8 @@
   <properties>
     <browser>phantomjs</browser>
     <version.resteasy>3.0.11.Final</version.resteasy>
+    <httpclient.version>4.5</httpclient.version>
+    <fluent-hc.version>4.5</fluent-hc.version>
   </properties>
 
   <build>
@@ -41,6 +43,13 @@
         <artifactId>maven-deploy-plugin</artifactId>
         <configuration>
           <skip>true</skip>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.sonatype.plugins</groupId>
+        <artifactId>nexus-staging-maven-plugin</artifactId>
+        <configuration>
+          <skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
         </configuration>
       </plugin>
       <plugin>
@@ -68,6 +77,21 @@
          ANY MODULES SHOULD BE ADDED, AS APPROPRIATE, TO THE ROOT
          pom.xml OF THIS PROJECT. -->
   </modules>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpclient</artifactId>
+        <version>${httpclient.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>fluent-hc</artifactId>
+        <version>${fluent-hc.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <dependencies>
     <dependency>
