@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2016 Red Hat, Inc, and individual contributors.
+ * Copyright 2015-2017 Red Hat, Inc, and individual contributors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,9 @@ import java.nio.file.WatchEvent.Kind;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import __redirected.__JAXPRedirected;
+import org.jboss.modules.Module;
+import org.jboss.modules.ModuleIdentifier;
 import org.wildfly.swarm.bootstrap.env.ApplicationEnvironment;
 import org.wildfly.swarm.bootstrap.modules.BootModuleLoader;
 import org.wildfly.swarm.bootstrap.performance.Performance;
@@ -124,6 +127,8 @@ public class Main {
 
     public void run() throws Throwable {
         setupBootModuleLoader();
+
+        __JAXPRedirected.changeAll(ModuleIdentifier.create("swarm.container"), Module.getBootModuleLoader());
         mainInvoker = new MainInvoker(ApplicationEnvironment.get().getMainClassName(), this.args);
         mainInvoker.invoke();
     }

@@ -9,9 +9,9 @@
 
   <parent>
     <groupId>org.wildfly.swarm</groupId>
-    <artifactId>wildfly-swarm</artifactId>
-    <version>2017.8.0-SNAPSHOT</version>
-    <relativePath>../../</relativePath>
+    <artifactId>build-parent</artifactId>
+    <version>2017.11.0-SNAPSHOT</version>
+    <relativePath>../../build-parent/pom.xml</relativePath>
   </parent>
 
   <groupId>org.wildfly.swarm</groupId>
@@ -32,6 +32,18 @@
       </resource>
     </resources>
   </build>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.vertx</groupId>
+        <artifactId>vertx-dependencies</artifactId>
+        <version>${version.vertx}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <dependencies>
     <dependency>

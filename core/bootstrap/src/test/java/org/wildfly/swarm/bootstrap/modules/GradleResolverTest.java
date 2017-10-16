@@ -1,3 +1,18 @@
+/**
+ * Copyright 2015-2017 Red Hat, Inc, and individual contributors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.wildfly.swarm.bootstrap.modules;
 
 import org.jboss.modules.maven.ArtifactCoordinates;
@@ -102,6 +117,43 @@ public class GradleResolverTest {
 
         //THEN
         assertEquals(artifact + "-" + version + "-"+ classifier + "." + packaging, artifactFileName);
+    }
+
+    @Test
+    public void testToGradleArtifactPath(){
+        //GIVEN
+        String group = "org.jboss.ws.cxf";
+        String artifact = "jbossws-cxf-resources";
+        String version = "5.1.5.Final";
+        ArtifactCoordinates artifactCoordinates = new ArtifactCoordinates(group, artifact, version);
+
+        //WHEN
+        GradleResolver resolver = new GradleResolver(null);
+        String artifactPath = resolver.toGradleArtifactPath(artifactCoordinates);
+
+        //THEN
+        assertEquals(
+                "org/jboss/ws/cxf/jbossws-cxf-resources/5.1.5.Final/jbossws-cxf-resources-5.1.5.Final",
+                artifactPath);
+    }
+
+    @Test
+    public void testToGradleArtifactPath_withClassifier(){
+        //GIVEN
+        String group = "org.jboss.ws.cxf";
+        String artifact = "jbossws-cxf-resources";
+        String version = "5.1.5.Final";
+        String classifier = "wildfly1000";
+        ArtifactCoordinates artifactCoordinates = new ArtifactCoordinates(group, artifact, version, classifier);
+
+        //WHEN
+        GradleResolver resolver = new GradleResolver(null);
+        String artifactPath = resolver.toGradleArtifactPath(artifactCoordinates);
+
+        //THEN
+        assertEquals(
+                "org/jboss/ws/cxf/jbossws-cxf-resources/5.1.5.Final/jbossws-cxf-resources-5.1.5.Final-wildfly1000",
+                artifactPath);
     }
 
     @Test

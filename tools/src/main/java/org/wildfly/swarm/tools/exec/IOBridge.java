@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2016 Red Hat, Inc, and individual contributors.
+ * Copyright 2015-2017 Red Hat, Inc, and individual contributors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -82,6 +82,9 @@ public class IOBridge implements Runnable, Closeable {
             fileOut.flush();
         }
         if (line.contains("WFSWARM99999")) {
+            this.latch.countDown();
+        }
+        if (line.contains("MSC000001: Failed to start service jboss.deployment.unit.")) {
             this.latch.countDown();
         }
     }

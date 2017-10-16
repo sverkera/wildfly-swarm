@@ -185,6 +185,8 @@ public class UberjarSimpleContainer implements SimpleContainer {
             executor.withProperty(SwarmProperties.CONTEXT_PATH, contextRoot.context());
         }
 
+        executor.withProperty("swarm.inhibit.auto-stop", "true");
+
         String additionalRepos = System.getProperty(SwarmInternalProperties.BUILD_REPOS);
         if (additionalRepos != null) {
             additionalRepos = additionalRepos + ",";
@@ -204,7 +206,7 @@ public class UberjarSimpleContainer implements SimpleContainer {
         // check for "org.wildfly.swarm.allDependencies" flag
         // see DependenciesContainer#addAllDependencies()
         if (archive instanceof DependenciesContainer) {
-            DependenciesContainer<?> depContainer =  (DependenciesContainer<?>) archive;
+            DependenciesContainer<?> depContainer = (DependenciesContainer<?>) archive;
             if (depContainer.hasMarker(DependenciesContainer.ALL_DEPENDENCIES_MARKER)) {
                 munge(depContainer, declaredDependencies);
             }
@@ -248,6 +250,10 @@ public class UberjarSimpleContainer implements SimpleContainer {
                 }
             }
             tool.mainClass(mainClassName.orElse(Swarm.class.getName()));
+        }
+
+        if (this.testClass != null) {
+            tool.testClass(this.testClass.getName());
         }
 
         Archive<?> wrapped = null;

@@ -10,11 +10,10 @@
   <parent>
     <groupId>org.wildfly.swarm</groupId>
     <artifactId>boms</artifactId>
-    <version>2017.8.0-SNAPSHOT</version>
+    <version>2017.11.0-SNAPSHOT</version>
     <relativePath>../</relativePath>
   </parent>
 
-  <groupId>org.wildfly.swarm</groupId>
   <artifactId>bom</artifactId>
 
   <name>BOM: 3+ : Recommended</name>
@@ -36,16 +35,26 @@
         <executions>
           <execution>
             <id>generate-bom</id>
-            <phase>prepare-package</phase>
-            <goals>
-              <goal>generate-bom</goal>
-            </goals>
+            <phase>initialize</phase>
             <configuration>
               <stabilityIndex>3+</stabilityIndex>
-              <template>${project.parent.build.directory}/bom-template.xml</template>
             </configuration>
           </execution>
+          <execution>
+            <id>prep-doc-source</id>
+            <phase>generate-sources</phase>
+          </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <groupId>de.saumya.mojo</groupId>
+        <artifactId>jruby-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <artifactId>maven-javadoc-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <artifactId>maven-assembly-plugin</artifactId>
       </plugin>
     </plugins>
 
@@ -57,5 +66,60 @@
       </extension>
     </extensions>
   </build>
+
+   <profiles>
+      <!-- This profile is used to generate and transform/fix licenses.xml file based on the BOM dependencies -->
+      <profile>
+         <id>licenses</id>
+         <build>
+            <plugins>
+               <plugin>
+                  <groupId>org.wildfly.swarm</groupId>
+                  <artifactId>wildfly-swarm-fraction-plugin</artifactId>
+                  <executions>
+                     <execution>
+                        <id>generate-licenses</id>
+                        <goals>
+                           <goal>generate-licenses</goal>
+                        </goals>
+                        <configuration>
+                           <template>${project.parent.build.directory}/generated-project-template.xml</template>
+                           <licensesTemplate>${project.parent.build.directory}/licenses-project-template.xml</licensesTemplate>
+                           <downloadSources>true</downloadSources>
+                           <downloadPoms>true</downloadPoms>
+                           <!-- Use custom settings to point to the local maven repo cache -->
+                           <userSettings>${project.parent.build.directory}/custom-settings.xml</userSettings>
+                           <excludes>
+                              <exclude>org/codehaus/plexus/plexus/1.0.4/.*</exclude>
+                           </excludes>
+                        </configuration>
+                     </execution>
+                  </executions>
+               </plugin>
+              <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <configuration>
+                  <descriptors>
+                    <descriptor>${project.basedir}/assembly.xml</descriptor>
+                  </descriptors>
+                </configuration>
+                <executions>
+                  <execution>
+                    <id>assemble</id>
+                    <phase>package</phase>
+                    <goals>
+                      <goal>single</goal>
+                    </goals>
+                    <configuration>
+                      <tarLongFileMode>gnu</tarLongFileMode>
+                    </configuration>
+                  </execution>
+                </executions>
+              </plugin>
+            </plugins>
+         </build>
+      </profile>
+   </profiles>
 
 </project>

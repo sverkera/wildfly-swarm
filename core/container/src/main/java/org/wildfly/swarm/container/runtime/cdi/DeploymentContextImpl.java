@@ -1,3 +1,18 @@
+/**
+ * Copyright 2015-2017 Red Hat, Inc, and individual contributors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.wildfly.swarm.container.runtime.cdi;
 
 import java.lang.annotation.Annotation;
@@ -15,7 +30,6 @@ import org.jboss.shrinkwrap.api.Archive;
 import org.wildfly.swarm.spi.runtime.annotations.DeploymentScoped;
 
 /**
- *
  * @author Martin Kouba
  */
 @Vetoed
@@ -25,7 +39,10 @@ public class DeploymentContextImpl implements DeploymentContext {
     private final ThreadLocal<Map<Contextual<?>, ContextualInstance<?>>> currentContext = new ThreadLocal<>();
 
     private final ThreadLocal<Archive> currentArchive = new ThreadLocal<>();
+
     private final ThreadLocal<String> currentName = new ThreadLocal<>();
+
+    private final ThreadLocal<Boolean> implicitDeployment = new ThreadLocal<>();
 
     public Class<? extends Annotation> getScope() {
         return DeploymentScoped.class;
@@ -67,10 +84,11 @@ public class DeploymentContextImpl implements DeploymentContext {
         ctx.remove(contextual);
     }
 
-    public void activate(Archive archive, String asName) {
+    public void activate(Archive archive, String asName, boolean implicit) {
         currentContext.set(new HashMap<>());
         currentArchive.set(archive);
         currentName.set(asName);
+        implicitDeployment.set(implicit);
     }
 
     public void deactivate() {
@@ -97,6 +115,11 @@ public class DeploymentContextImpl implements DeploymentContext {
 
     public String getCurrentName() {
         return currentName.get();
+    }
+
+    @Override
+    public boolean isImplicit() {
+        return implicitDeployment.get();
     }
 
     /**
@@ -150,13 +173,13 @@ public class DeploymentContextImpl implements DeploymentContext {
         }
 
         @Override
-        public void activate(Archive archive, String asName) {
+        public void activate(Archive archive, String asName, boolean implicit) {
             try {
                 beanManager.getContext(delegate.getScope());
                 LOGGER.info("Command context already active");
             } catch (ContextNotActiveException e) {
                 // Only activate the context if not already active
-                delegate.activate(archive, asName);
+                delegate.activate(archive, asName, implicit);
                 isActivator = true;
             }
         }
@@ -178,6 +201,11 @@ public class DeploymentContextImpl implements DeploymentContext {
         @Override
         public String getCurrentName() {
             return this.delegate.getCurrentName();
+        }
+
+        @Override
+        public boolean isImplicit() {
+            return this.delegate.isImplicit();
         }
     }
 

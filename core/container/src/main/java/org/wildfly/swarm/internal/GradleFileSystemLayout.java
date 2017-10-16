@@ -1,5 +1,5 @@
 /**
- * Copyright 2015-2016 Red Hat, Inc, and individual contributors.
+ * Copyright 2015-2017 Red Hat, Inc, and individual contributors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,17 +57,17 @@ public class GradleFileSystemLayout extends FileSystemLayout {
         return rootPath;
     }
 
-    private static final String BUILD = "build";
+    protected static final String BUILD = "build";
 
-    private static final String CLASSES = "classes";
+    protected static final String CLASSES = "classes";
 
-    private static final String MAIN = "main";
+    protected static final String MAIN = "main";
 
-    private static final String RESOURCES = "resources";
+    protected static final String RESOURCES = "resources";
 
-    private static final String SRC = "src";
+    protected static final String SRC = "src";
 
-    private static final String WEBAPP = "webapp";
+    protected static final String WEBAPP = "webapp";
 
     private final Path rootPath;
 }

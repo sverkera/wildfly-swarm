@@ -9,9 +9,9 @@
 
   <parent>
     <groupId>org.wildfly.swarm</groupId>
-    <artifactId>wildfly-swarm</artifactId>
-    <version>2017.8.0-SNAPSHOT</version>
-    <relativePath>../../</relativePath>
+    <artifactId>build-parent</artifactId>
+    <version>2017.11.0-SNAPSHOT</version>
+    <relativePath>../../build-parent/pom.xml</relativePath>
   </parent>
 
   <groupId>org.wildfly.swarm</groupId>
@@ -59,7 +59,7 @@
               <excludeTransitive>true</excludeTransitive>
               <includeGroupIds>org.jboss.modules,org.yaml</includeGroupIds>
               <includeScope>compile</includeScope>
-              <excludes>**\/MavenArtifactUtil.class,**\/ArtifactCoordinates.class</excludes>
+              <excludes>**\/MavenArtifactUtil.class,**\/ArtifactCoordinates.class,**\/MavenSettings.class</excludes>
               <outputDirectory>${project.build.directory}/classes</outputDirectory>
             </configuration>
           </execution>
