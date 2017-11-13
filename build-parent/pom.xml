@@ -10,7 +10,7 @@
   <parent>
     <groupId>org.wildfly.swarm</groupId>
     <artifactId>wildfly-swarm</artifactId>
-    <version>2017.11.0-SNAPSHOT</version>
+    <version>2017.12.0-SNAPSHOT</version>
     <relativePath>../</relativePath>
   </parent>
 
@@ -22,7 +22,7 @@
   <description>Build Parent to bring in required dependencies</description>
 
   <properties>
-    <version.wildfly.swarm.fraction.plugin>63</version.wildfly.swarm.fraction.plugin>
+    <version.wildfly.swarm.fraction.plugin>74</version.wildfly.swarm.fraction.plugin>
 
     <version.org.snakeyaml>1.17</version.org.snakeyaml>
 
@@ -73,7 +73,7 @@
 
     <version.teiid.feature-pack>9.2.0.Final</version.teiid.feature-pack>
 
-    <version.flyway>4.0.3</version.flyway>
+    <version.flyway>4.2.0</version.flyway>
 
     <version.gradle>2.4</version.gradle>
     <version.gradle.plugins>1.12</version.gradle.plugins>
