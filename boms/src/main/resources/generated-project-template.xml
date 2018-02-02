@@ -18,24 +18,32 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>org.jboss.shrinkwrap</groupId>
-        <artifactId>shrinkwrap-bom</artifactId>
-        <version>${version.shrinkwrap}</version>
+        <groupId>BOM_GROUPID</groupId>
+        <artifactId>BOM_ARTIFACT</artifactId>
+        <version>SWARM_VERSION</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
       <dependency>
-        <groupId>org.jboss.shrinkwrap.descriptors</groupId>
-        <artifactId>shrinkwrap-descriptors-bom</artifactId>
-        <version>${version.shrinkwrap-descriptors}</version>
-        <type>pom</type>
+        <groupId>BOM_GROUPID</groupId>
+        <artifactId>bom-certified</artifactId>
+        <version>SWARM_VERSION</version>
         <scope>import</scope>
+        <type>pom</type>
       </dependency>
     </dependencies>
   </dependencyManagement>
 
   <dependencies>
     FRACTIONS_FROM_BOM
+
+    <dependency>
+      <groupId>org.wildfly.swarm</groupId>
+      <artifactId>fraction-metadata</artifactId>
+      <version>SWARM_VERSION</version>
+      <scope>provided</scope>
+    </dependency>
+
   </dependencies>
 
   <build>
